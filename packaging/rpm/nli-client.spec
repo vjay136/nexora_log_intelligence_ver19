@@ -1,11 +1,11 @@
-%{!?nli_version:%global nli_version 18.0.0}
-%{!?nli_release:%global nli_release 2}
+%{!?nli_version:%global nli_version 19.0.0}
+%{!?nli_release:%global nli_release 1}
 Name:           nli-client
 Version:        %{nli_version}
 Release:        %{nli_release}%{?dist}
-Summary:        Nexora Log Intelligence Ver18 parsing client
+Summary:        Nexora Log Intelligence Ver19 parsing client
 License:        LicenseRef-Proprietary
-URL:            https://github.com/vjay136/nexora_log_intelligence_ver18.git
+URL:            https://github.com/vjay136/nexora_log_intelligence_ver19.git
 Source0:        %{name}-%{version}.tar.gz
 ExclusiveArch:  x86_64
 Provides:       nli-agent = %{version}-%{release}
@@ -21,8 +21,8 @@ AutoReqProv:    no
 %global __os_install_post %{nil}
 
 %description
-NLI v18 client containing the source-derived static parser agent, CLI, benchmark
-utility, and restricted fleet-control sidecar. The nli_clinet_ver18.rpm spelling
+NLI v19 client containing the source-derived static parser agent, CLI, benchmark
+utility, and restricted fleet-control sidecar. The nli_clinet_ver19.rpm spelling
 is a byte-identical distribution filename alias, not a second RPM package.
 
 %prep
@@ -108,6 +108,10 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/PARSER_CATALOG.md
 
 %changelog
+* Wed Oct 21 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-1
+- Establish Ver19 release identity, Ver18 upgrade input, and documented rollback path.
+
+
 * Wed Oct 21 2026 Nexora Engineering <engineering@nexora.local> - 18.0.0-1
 - Fix one-second client telemetry publication, empty snapshots, and collection-error visibility.
 

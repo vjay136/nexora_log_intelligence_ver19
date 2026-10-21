@@ -3,10 +3,10 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Uninstall the NLI v18 controller.
+Uninstall the NLI v19 controller.
 
 Usage:
-  sudo bash uninstall-controller-ver18.sh [--yes] [--purge]
+  sudo bash uninstall-controller-ver19.sh [--yes] [--purge]
 
 The default removal preserves controller configuration, users, TLS material,
 and state for recovery or reinstall. --purge permanently removes those local
@@ -15,8 +15,8 @@ deleted by this script.
 EOF
 }
 
-fail() { printf 'uninstall-controller-ver18: %s\n' "$*" >&2; exit 1; }
-info() { printf 'uninstall-controller-ver18: %s\n' "$*"; }
+fail() { printf 'uninstall-controller-ver19: %s\n' "$*" >&2; exit 1; }
+info() { printf 'uninstall-controller-ver19: %s\n' "$*"; }
 
 assume_yes=0
 purge=0

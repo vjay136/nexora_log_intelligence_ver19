@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"testing"
 
-	"nexora.local/nli-v18/internal/fleet"
-	metastore "nexora.local/nli-v18/internal/store"
+	"nexora.local/nli-v19/internal/fleet"
+	metastore "nexora.local/nli-v19/internal/store"
 )
 
 func TestInputPathProfileAllows256AndRejects257Inputs(t *testing.T) {

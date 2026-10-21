@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"nexora.local/nli-v18/internal/protocol"
+	"nexora.local/nli-v19/internal/protocol"
 )
 
 // RolloutType constants.

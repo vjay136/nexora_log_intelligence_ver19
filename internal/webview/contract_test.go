@@ -91,7 +91,7 @@ func TestLoginFailsClosedUntilControllerIdentityIsVerified(t *testing.T) {
 		"method: 'OPTIONS'",
 		"health?.service !== 'nli-controller-agent'",
 		"health?.api_version !== 'v1'",
-		"loginResponse.headers.get('x-nli-controller') !== 'v18'",
+		"loginResponse.headers.get('x-nli-controller') !== 'v19'",
 		"if(!state.controllerReady){showPreviewOnly(CONTROLLER_REQUIRED);return;}",
 	} {
 		if !strings.Contains(app, marker) {

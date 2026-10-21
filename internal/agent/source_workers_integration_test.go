@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"nexora.local/nli-v18/internal/multiline"
-	"nexora.local/nli-v18/internal/output"
+	"nexora.local/nli-v19/internal/multiline"
+	"nexora.local/nli-v19/internal/output"
 )
 
 func TestSourceWorkersKeepEachInputOutputOrder(t *testing.T) {

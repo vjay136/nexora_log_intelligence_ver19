@@ -1,5 +1,10 @@
 # Changelog
 
+## [19.0.0-1] - 2026-10-21
+
+- Establish the Ver19 release identity across Go imports, web assets, RPM metadata, installers, bundles, and CI tags.
+- Preserve Ver18 as the explicit upgrade source and retain its parser catalog and architecture evidence.
+- Add a bundled migration and rollback note describing state preservation and recovery limits.
 ## [18.0.0-1] - 2026-10-21
 
 - Separate controller transport freshness from per-source activity so idle log

@@ -10,9 +10,9 @@ import (
 	"regexp"
 	"strings"
 
-	"nexora.local/nli-v18/internal/grok"
-	"nexora.local/nli-v18/internal/mixedkv"
-	"nexora.local/nli-v18/static-layout"
+	"nexora.local/nli-v19/internal/grok"
+	"nexora.local/nli-v19/internal/mixedkv"
+	"nexora.local/nli-v19/static-layout"
 )
 
 // LoadParserPack reads exactly one bounded JSON object, rejects unknown fields

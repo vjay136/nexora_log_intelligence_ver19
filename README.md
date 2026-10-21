@@ -1,16 +1,32 @@
-# Nexora Log Intelligence Ver18
+# Nexora Log Intelligence Ver19
 
-Nexora Log Intelligence Ver18 is a deterministic, review-gated log parsing and fleet-control platform for x86_64 RHEL/Rocky Linux 8, 9, and 10. It combines a managed client, a central controller, an authenticated WebView/webapp, Supabase-backed control metadata, private file storage for approved workflows, and optional AI-assisted parser proposals.
+Nexora Log Intelligence Ver19 is a deterministic, review-gated log parsing and fleet-control platform for x86_64 RHEL/Rocky Linux 8, 9, and 10. It combines a managed client, a central controller, an authenticated WebView/webapp, Supabase-backed control metadata, private file storage for approved workflows, and optional AI-assisted parser proposals.
 
-> Install from the single versioned release archive in a fresh directory. Verify its external `.sha256` file and the complete internal `SHA256SUMS`; never mix loose files from different V18 releases.
+> Install from the single versioned release archive in a fresh directory. Verify its external `.sha256` file and the complete internal `SHA256SUMS`; never mix loose files from different V19 releases.
 
-## Complete flow and architecture
+## V18 upgrade baseline architecture
 
-[![Nexora Log Intelligence Ver18 complete flow and architecture](docs/architecture/NLI_V18_COMPLETE_FLOW_AND_ARCHITECTURE_8K.png)](docs/architecture/NLI_V18_COMPLETE_FLOW_AND_ARCHITECTURE.svg)
+[![Nexora Log Intelligence Ver18 baseline architecture](docs/architecture/NLI_V18_COMPLETE_FLOW_AND_ARCHITECTURE_8K.png)](docs/architecture/NLI_V18_COMPLETE_FLOW_AND_ARCHITECTURE.svg)
 
-The linked SVG provides unlimited zoom. The 8K PNG is included for presentations and offline documentation.
+The V18 architecture SVG is retained as the upgrade baseline reference. Its 8K PNG is included for presentations and offline documentation.
 
-## V18 capabilities
+## Ver19 NUPIRE and EGPE
+
+Ver19 adds the Nexora Universal Parser Intelligence and Runtime Evolution
+(NUPIRE) control plane and its evidence-gated parser evolution workflow. It
+discovers bounded structural hypotheses, compiles declarative parser artifacts,
+evaluates them against disjoint held-out evidence, and records shadow, approval,
+canary, promotion, drift, and rollback transitions. Candidate creation never
+changes the client hot path by itself; production delivery continues through
+the existing independently approved, signed rollout mechanism.
+
+The controller exposes authenticated NUPIRE APIs and the WebView contains a
+dedicated NUPIRE/EGPE workspace backed by persisted controller state. Empty or
+unavailable measurements remain explicit. See the [NUPIRE architecture](docs/V19_NUPIRE_ARCHITECTURE.md),
+[baseline gap audit](docs/V19_BASELINE_CAPABILITY_GAP.md), and
+[research ledger](docs/V19_RESEARCH_AND_LICENSE_LEDGER.md).
+
+## V18 baseline capabilities retained in Ver19
 
 - Reviewed first-tier ParserPacks for IMAP, POP, MTA, SMTP-IN, SMTP-OUT, WebTop/Webmail, PSS/PABD, and MSS/CAPD, derived from the supplied working Alloy/Vector parser sources.
 - A versioned catalog for known keys, delimiter rules, static layouts, regex, templates, projections, field mappings, semantic extraction, and bounded generic fallback.
@@ -24,11 +40,11 @@ The linked SVG provides unlimited zoom. The 8K PNG is included for presentations
 - Fleet, controller, and client management with node identity, heartbeat age, service state, configured inputs, selected outputs, parser/config revisions, resource telemetry, command leases, results, and audit.
 - Family-isolated parsed JSON and quarantine files for ten default inputs, plus simultaneous fan-out to Grafana Loki and ClickHouse with independent batching, retry, and local failure receipts. Authenticated bounded parser telemetry flows separately to the controller for live dashboards. Exact quarantined source records remain in the durable client queue and may be uploaded only when the operator enables bounded raw retention.
 - Pre-parse `default`, `filtered`, and `hybrid` selection by exact event name, service, and hostname, including reviewed presets for ImapDisconnected, AcctBadPswd, auth.loginByToken, MtaRequestingDomainTableUpdate, CARDDAV, and SieveRuleMsg.
-- x86_64 client and controller RPMs, one-use private-CA enrollment, fresh installation and V15-to-V18 upgrade acceptance (with genuine V15 RPMs), WebView/webapp archives, uninstall scripts, SBOM, provenance, and reproducible build checks. Historical V8/V10/V12/V14 packages remain accepted by the migration matrix.
+- x86_64 client and controller RPMs, one-use private-CA enrollment, fresh-install packaging and V18-to-V19 upgrade/rollback acceptance gates (requiring genuine V18 RPMs), WebView/webapp archives, uninstall scripts, SBOM, provenance, and reproducible build checks. Historical V8/V10/V12/V14 packages remain accepted by the migration matrix.
 
 ## Accuracy contract
 
-V18 treats accuracy as two measurable guarantees:
+The V18 baseline treats accuracy as two measurable guarantees:
 
 1. Every supplied known-family corpus record must match its reviewed parser and golden field expectations.
 2. Every other accepted record must remain lossless through an exact source payload or reversible token representation with explicit parser, confidence, and diagnostic metadata.
@@ -52,12 +68,16 @@ File buckets are private. Browsers never receive `SUPABASE_SECRET_KEY`, object p
 
 The publishable key is used only for the protected metadata RPC contract. Server-side private Storage requires a dedicated `sb_secret_...` key in the root-owned controller environment; it must never be committed, sent to Vercel, copied to a client RPM, or placed in a `NEXT_PUBLIC_` variable.
 
+## V18 upgrade and rollback
+
+Ver19 keeps the RPM package identities, systemd units, `/etc/nli` configuration, and `/var/lib/nli` state paths used by Ver18 so RPM can perform an in-place upgrade while retaining configuration and state paths. The V18-to-V19 lifecycle still requires release acceptance. Use the Ver19 bundle installer and retain the exact Ver18 client and controller RPMs until the post-upgrade checks pass. The rollback procedure and data-preservation limits are recorded in [the migration and rollback note](docs/release/V19_MIGRATION_AND_ROLLBACK.md).
+
 ## Installation
 
 On the Rocky/RHEL controller, the lowest-interaction path is:
 
 ```bash
-sudo bash install-controller-ver18.sh --automatic
+sudo bash install-controller-ver19.sh --automatic
 ```
 
 This discovers private/public AWS and host identities, persists generated secrets in root-owned files, creates TLS material, configures the listener/firewall, and prints concrete diagnostics. Run without `--automatic` to choose private-network TLS, public Nginx/ACME, Cloudflare Tunnel, a corporate certificate, or an existing public HTTPS proxy. The installer creates a root-only, one-use `/root/nli-client-bootstrap.env` and a recoverable root-only `/root/nli-controller-credentials.env`; it does not print secret values to the terminal.
@@ -65,7 +85,7 @@ This discovers private/public AWS and host identities, persists generated secret
 On each client, provision all reviewed families and standard paths with:
 
 ```bash
-sudo bash install-client-ver18.sh --all-log-files
+sudo bash install-client-ver19.sh --all-log-files
 ```
 
 The interactive installer remains available for custom log paths, parser families, event/service/hostname selection, and destinations. Enter `automatic` for both paths and parser families to create and verify one reviewed sample path for every bundled parser. For each additional client, first create a new one-use enrollment file on the controller:
@@ -77,33 +97,33 @@ sudo nli-controller-setup --rotate-enrollment
 Use the separate uninstall scripts when required:
 
 ```bash
-sudo bash uninstall-client-ver18.sh
-sudo bash uninstall-controller-ver18.sh
+sudo bash uninstall-client-ver19.sh
+sudo bash uninstall-controller-ver19.sh
 ```
 
 See [INSTALLATION_AND_CONFIGURATION.md](docs/INSTALLATION_AND_CONFIGURATION.md) for VMware/MobaXterm steps, connectivity checks, Vercel/Cloudflare configuration, Supabase bootstrap, upgrades, and optional purge behavior.
 
 For the two-node AWS Red Hat path, use
-[V18_AWS_RED_HAT_INSTALLATION.md](docs/V18_AWS_RED_HAT_INSTALLATION.md). The
+[V19_AWS_RED_HAT_INSTALLATION.md](docs/V19_AWS_RED_HAT_INSTALLATION.md). The
 single additive controller command that installs private VPC TLS and then
 starts a named Cloudflare Tunnel is:
 
 ```bash
-sudo bash install-controller-aws-cloudflare-ver18.sh \
-  --rpm ./nli_controller_agent_ver18.rpm \
+sudo bash install-controller-aws-cloudflare-ver19.sh \
+  --rpm ./nli_controller_agent_ver19.rpm \
   --private-endpoint 10.20.1.10 \
   --public-hostname nli-controller.example.com \
   --tunnel-token-file /root/cloudflare-tunnel-token.txt
 ```
 
-See [V18_CLOUDFLARE_TUNNEL.md](docs/V18_CLOUDFLARE_TUNNEL.md),
+See [V19_CLOUDFLARE_TUNNEL.md](docs/V19_CLOUDFLARE_TUNNEL.md),
 [VERCEL_DEPLOYMENT.md](docs/VERCEL_DEPLOYMENT.md), and
 [CLOUDFLARE_PAGES_DEPLOYMENT.md](docs/CLOUDFLARE_PAGES_DEPLOYMENT.md) for the
 two supported hosted WebApp paths.
 
 See [WEBAPP_OPERATOR_AND_PARSER_GUIDE.md](docs/WEBAPP_OPERATOR_AND_PARSER_GUIDE.md) for the complete WebApp exercise: Assurance samples, parser and policy drafts, editing, independent approval, publication, fleet verification, retry, deletion limits, users/RBAC, and controller/client operations.
 
-See [V18 support matrix](docs/V18_SUPPORT_MATRIX.md) for tested platform and hosting scope, and [V18 engineering audit](docs/V18_ENGINEERING_AUDIT.md) for evidence, release claims, provenance, and known limits.
+See [V19 support matrix](docs/V19_SUPPORT_MATRIX.md) for tested platform and hosting scope, and [V19 engineering audit](docs/V19_ENGINEERING_AUDIT.md) for evidence, release claims, provenance, and known limits.
 
 ## WebView and hosted webapp
 
@@ -144,8 +164,8 @@ docs/                 Architecture, release, and operating documentation
 
 ## Repository
 
-<https://github.com/vjay136/nexora_log_intelligence_ver18.git>
+<https://github.com/vjay136/nexora_log_intelligence_ver19.git>
 
 ## License
 
-Proprietary — Nexora. Third-party dependencies and source-derived release inputs are recorded in the SBOM and provenance evidence.
+Proprietary â€” Nexora. Third-party dependencies and source-derived release inputs are recorded in the SBOM and provenance evidence.

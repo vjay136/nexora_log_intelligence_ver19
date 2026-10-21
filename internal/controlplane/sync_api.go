@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"nexora.local/nli-v18/internal/engine"
-	metastore "nexora.local/nli-v18/internal/store"
-	"nexora.local/nli-v18/telemetry"
+	"nexora.local/nli-v19/internal/engine"
+	metastore "nexora.local/nli-v19/internal/store"
+	"nexora.local/nli-v19/telemetry"
 )
 
 func (s *Server) handleSyncSnapshot(w http.ResponseWriter, r *http.Request) {

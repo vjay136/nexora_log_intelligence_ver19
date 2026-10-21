@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"nexora.local/nli-v18/internal/output"
+	"nexora.local/nli-v19/internal/output"
 )
 
 func TestExtractLineMetadata(t *testing.T) {

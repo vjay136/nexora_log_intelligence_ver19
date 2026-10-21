@@ -7,6 +7,8 @@ vendor/
 *.tmp
 bench/*.json
 build/
+.tools/
+.cache/
 .preview/
 node_modules/
 __pycache__/

@@ -10,16 +10,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"nexora.local/nli-v18/internal/auth"
-	"nexora.local/nli-v18/internal/controlplane"
-	"nexora.local/nli-v18/internal/engine"
+	"nexora.local/nli-v19/internal/auth"
+	"nexora.local/nli-v19/internal/controlplane"
+	"nexora.local/nli-v19/internal/engine"
 )
 
 func loadConfig(path string) (controlplane.Config, error) {
 	cfg := controlplane.Config{
 		ListenAddress:             "127.0.0.1:12382",
 		StateDir:                  "/var/lib/nli-controller",
-		WebDir:                    "/usr/share/nli/webview_ver18",
+		WebDir:                    "/usr/share/nli/webview_ver19",
 		EnrollmentTokenEnv:        "NLI_ENROLLMENT_TOKEN",
 		BootstrapAdminPasswordEnv: "NLI_BOOTSTRAP_ADMIN_PASSWORD",
 		CommandLeaseSeconds:       120,

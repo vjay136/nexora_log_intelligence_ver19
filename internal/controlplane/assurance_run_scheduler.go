@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"nexora.local/nli-v18/internal/middleware"
-	metastore "nexora.local/nli-v18/internal/store"
+	"nexora.local/nli-v19/internal/middleware"
+	metastore "nexora.local/nli-v19/internal/store"
 )
 
 var (

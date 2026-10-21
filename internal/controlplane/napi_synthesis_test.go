@@ -32,6 +32,10 @@ func TestNAPISynthesisCreatesEvidenceBackedDraftWithoutRawSamples(t *testing.T) 
 	if held["exact"] != float64(1) || validation["eligible"] != true {
 		t.Fatalf("held-out validation missing: %s", data)
 	}
+	evolution, _ := created["nupire"].(map[string]any)
+	if evolution["id"] == nil || evolution["state"] != "rejected" {
+		t.Fatalf("NAPI candidate was not bound to the stricter EGPE evidence gate: %s", data)
+	}
 
 	response, stored := f.request(http.MethodGet, "/api/v1/assurance/parsers/napi-json", nil)
 	if response.StatusCode != http.StatusOK {
@@ -40,6 +44,9 @@ func TestNAPISynthesisCreatesEvidenceBackedDraftWithoutRawSamples(t *testing.T) 
 	for _, raw := range []string{`{"level":"INFO","count":12}`, `{"level":"ERROR","count":42}`, `{"unrelated":"value"}`} {
 		if bytes.Contains(stored, []byte(raw)) {
 			t.Fatalf("raw synthesis sample leaked into parser metadata: %s", stored)
+		}
+		if bytes.Contains(data, []byte(raw)) {
+			t.Fatalf("raw synthesis sample leaked into NUPIRE response: %s", data)
 		}
 	}
 	if !bytes.Contains(stored, []byte(`"raw_samples_persisted":false`)) || !bytes.Contains(stored, []byte(`"held_out_sample_hashes"`)) {

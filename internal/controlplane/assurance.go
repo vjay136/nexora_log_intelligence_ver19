@@ -22,10 +22,10 @@ import (
 	"sync"
 	"time"
 
-	"nexora.local/nli-v18/internal/auditlog"
-	"nexora.local/nli-v18/internal/engine"
-	"nexora.local/nli-v18/internal/middleware"
-	metastore "nexora.local/nli-v18/internal/store"
+	"nexora.local/nli-v19/internal/auditlog"
+	"nexora.local/nli-v19/internal/engine"
+	"nexora.local/nli-v19/internal/middleware"
+	metastore "nexora.local/nli-v19/internal/store"
 )
 
 type assuranceVault struct {

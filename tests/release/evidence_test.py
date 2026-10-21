@@ -16,32 +16,33 @@ class EvidenceGeneratorTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             artifacts = pathlib.Path(directory)
             names = (
-                "nli_client_ver18.rpm",
-                "nli_clinet_ver18.rpm",
-                "nli_controller_agent_ver18.rpm",
-                "webview_ver18.zip",
-                "webapp_ver18.zip",
-                "install-controller-ver18.sh",
-                "install-client-ver18.sh",
-                "install-controller-aws-ver18.sh",
-                "install-client-aws-ver18.sh",
-                "install-controller-aws-cloudflare-ver18.sh",
-                "aws-rhel-preflight-ver18.sh",
-                "aws-security-group-plan-ver18.sh",
-                "setup-cloudflare-tunnel-v18.sh",
-                "verify-cloudflare-tunnel-v18.sh",
-                "uninstall-cloudflare-tunnel-v18.sh",
-                "cloudflare-quick-diagnosis-v18.sh",
+                "nli_client_ver19.rpm",
+                "nli_clinet_ver19.rpm",
+                "nli_controller_agent_ver19.rpm",
+                "webview_ver19.zip",
+                "webapp_ver19.zip",
+                "install-controller-ver19.sh",
+                "install-client-ver19.sh",
+                "install-controller-aws-ver19.sh",
+                "install-client-aws-ver19.sh",
+                "install-controller-aws-cloudflare-ver19.sh",
+                "aws-rhel-preflight-ver19.sh",
+                "aws-security-group-plan-ver19.sh",
+                "setup-cloudflare-tunnel-v19.sh",
+                "verify-cloudflare-tunnel-v19.sh",
+                "uninstall-cloudflare-tunnel-v19.sh",
+                "cloudflare-quick-diagnosis-v19.sh",
                 "vercel-preflight.mjs",
-                "uninstall-controller-ver18.sh",
-                "uninstall-client-ver18.sh",
+                "uninstall-controller-ver19.sh",
+                "uninstall-client-ver19.sh",
                 "INSTALLATION_AND_CONFIGURATION.md",
-                "V18_AWS_RED_HAT_INSTALLATION.md",
-                "V18_CLOUDFLARE_TUNNEL.md",
+                "V19_AWS_RED_HAT_INSTALLATION.md",
+                "V19_CLOUDFLARE_TUNNEL.md",
                 "VERCEL_DEPLOYMENT.md",
                 "CLOUDFLARE_PAGES_DEPLOYMENT.md",
                 "WEBAPP_OPERATOR_AND_PARSER_GUIDE.md",
                 "PARSER_CATALOG.md",
+                "V19_MIGRATION_AND_ROLLBACK.md",
                 "BENCHMARKS.txt",
                 "SAMPLE_FIELD_ACCOUNTING.json",
                 "RELEASE_ID",
@@ -52,12 +53,12 @@ class EvidenceGeneratorTest(unittest.TestCase):
                 elif name == "SAMPLE_FIELD_ACCOUNTING.json":
                     content = b'{"verdict":"pass"}\n'
                 elif name == "RELEASE_ID":
-                    content = b"NLI_VERSION=18.0.0\nNLI_RELEASE=1\nNLI_ARCH=x86_64\nSOURCE_REVISION=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+                    content = b"NLI_VERSION=19.0.0\nNLI_RELEASE=1\nNLI_ARCH=x86_64\nSOURCE_REVISION=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
                 else:
                     content = f"fixture-{index}".encode()
                 (artifacts / name).write_bytes(content)
             (artifacts / "SOURCE_BINARY_PROVENANCE.txt").write_text(
-                "\tmod\tnexora.local/nli-v18\t(devel)\n"
+                "\tmod\tnexora.local/nli-v19\t(devel)\n"
                 "\tdep\texample.invalid/module\tv1.2.3\th1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n",
                 encoding="utf-8",
             )
@@ -67,7 +68,7 @@ class EvidenceGeneratorTest(unittest.TestCase):
                 sys.executable,
                 str(generator),
                 "--artifacts", str(artifacts),
-                "--version", "18.0.0",
+                "--version", "19.0.0",
                 "--release", "1",
                 "--revision", "a" * 40,
                 "--source-date-epoch", "1791200000",

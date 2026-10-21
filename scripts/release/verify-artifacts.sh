@@ -7,36 +7,36 @@ ROOT=${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 source "$ROOT/packaging/release.env"
 fail() { echo "artifact verification: $*" >&2; exit 1; }
 
-client="$ARTIFACT_DIR/nli_client_ver18.rpm"
-alias="$ARTIFACT_DIR/nli_clinet_ver18.rpm"
-controller="$ARTIFACT_DIR/nli_controller_agent_ver18.rpm"
-web="$ARTIFACT_DIR/webview_ver18.zip"
-webapp="$ARTIFACT_DIR/webapp_ver18.zip"
+client="$ARTIFACT_DIR/nli_client_ver19.rpm"
+alias="$ARTIFACT_DIR/nli_clinet_ver19.rpm"
+controller="$ARTIFACT_DIR/nli_controller_agent_ver19.rpm"
+web="$ARTIFACT_DIR/webview_ver19.zip"
+webapp="$ARTIFACT_DIR/webapp_ver19.zip"
 operator_files=(
-  "$ARTIFACT_DIR/install-controller-ver18.sh"
-  "$ARTIFACT_DIR/install-client-ver18.sh"
-  "$ARTIFACT_DIR/uninstall-controller-ver18.sh"
-  "$ARTIFACT_DIR/uninstall-client-ver18.sh"
+  "$ARTIFACT_DIR/install-controller-ver19.sh"
+  "$ARTIFACT_DIR/install-client-ver19.sh"
+  "$ARTIFACT_DIR/uninstall-controller-ver19.sh"
+  "$ARTIFACT_DIR/uninstall-client-ver19.sh"
 )
 aws_scripts=(
-  "$ARTIFACT_DIR/install-controller-aws-ver18.sh"
-  "$ARTIFACT_DIR/install-client-aws-ver18.sh"
-  "$ARTIFACT_DIR/install-controller-aws-cloudflare-ver18.sh"
-  "$ARTIFACT_DIR/aws-rhel-preflight-ver18.sh"
-  "$ARTIFACT_DIR/aws-security-group-plan-ver18.sh"
+  "$ARTIFACT_DIR/install-controller-aws-ver19.sh"
+  "$ARTIFACT_DIR/install-client-aws-ver19.sh"
+  "$ARTIFACT_DIR/install-controller-aws-cloudflare-ver19.sh"
+  "$ARTIFACT_DIR/aws-rhel-preflight-ver19.sh"
+  "$ARTIFACT_DIR/aws-security-group-plan-ver19.sh"
 )
 cloudflare_scripts=(
-  "$ARTIFACT_DIR/setup-cloudflare-tunnel-v18.sh"
-  "$ARTIFACT_DIR/verify-cloudflare-tunnel-v18.sh"
-  "$ARTIFACT_DIR/uninstall-cloudflare-tunnel-v18.sh"
-  "$ARTIFACT_DIR/cloudflare-quick-diagnosis-v18.sh"
+  "$ARTIFACT_DIR/setup-cloudflare-tunnel-v19.sh"
+  "$ARTIFACT_DIR/verify-cloudflare-tunnel-v19.sh"
+  "$ARTIFACT_DIR/uninstall-cloudflare-tunnel-v19.sh"
+  "$ARTIFACT_DIR/cloudflare-quick-diagnosis-v19.sh"
 )
 for file in "$webapp" "$client" "$alias" "$controller" "$web" \
-  "$ARTIFACT_DIR/V18_AWS_RED_HAT_INSTALLATION.md" "${aws_scripts[@]}" "${cloudflare_scripts[@]}" \
-  "$ARTIFACT_DIR/V18_CLOUDFLARE_TUNNEL.md" "$ARTIFACT_DIR/VERCEL_DEPLOYMENT.md" "$ARTIFACT_DIR/CLOUDFLARE_PAGES_DEPLOYMENT.md" "$ARTIFACT_DIR/vercel-preflight.mjs" \
+  "$ARTIFACT_DIR/V19_AWS_RED_HAT_INSTALLATION.md" "${aws_scripts[@]}" "${cloudflare_scripts[@]}" \
+  "$ARTIFACT_DIR/V19_CLOUDFLARE_TUNNEL.md" "$ARTIFACT_DIR/VERCEL_DEPLOYMENT.md" "$ARTIFACT_DIR/CLOUDFLARE_PAGES_DEPLOYMENT.md" "$ARTIFACT_DIR/vercel-preflight.mjs" \
   "$ARTIFACT_DIR/INSTALLATION_AND_CONFIGURATION.md" \
   "$ARTIFACT_DIR/WEBAPP_OPERATOR_AND_PARSER_GUIDE.md" \
-  "$ARTIFACT_DIR/PARSER_CATALOG.md" "${operator_files[@]}"; do
+  "$ARTIFACT_DIR/PARSER_CATALOG.md" "$ARTIFACT_DIR/V19_MIGRATION_AND_ROLLBACK.md" "${operator_files[@]}"; do
   [[ -s $file ]] || fail "missing $(basename "$file")"
 done
 for script in "${aws_scripts[@]}" "${cloudflare_scripts[@]}"; do
@@ -82,10 +82,10 @@ cmp -s "$client" "$alias" || fail "compatibility alias is not byte-identical to 
 
 unzip -t "$webapp" >/dev/null || fail "invalid Vercel bundle"
 webapp_entries=$(unzip -Z1 "$webapp")
-for entry in vercel.json package.json api/v1/\[...path\].js functions/api/v1/\[\[path\]\].js web/index.html web/nli-mark.svg web/nexora-logo-v18.png web/login-banner-v18.png web/nexora-poster-v18.png web/package.json web/package-lock.json web/vite.config.js web/_headers; do
+for entry in vercel.json package.json api/v1/\[...path\].js functions/api/v1/\[\[path\]\].js web/index.html web/nli-mark.svg web/nexora-logo-v19.png web/login-banner-v19.png web/nexora-poster-v19.png web/package.json web/package-lock.json web/vite.config.js web/_headers; do
   grep -Fxq "$entry" <<<"$webapp_entries" || fail "Vercel bundle is missing $entry"
 done
-for image in nexora-logo-v18.png login-banner-v18.png nexora-poster-v18.png; do
+for image in nexora-logo-v19.png login-banner-v19.png nexora-poster-v19.png; do
   source_hash=$(sha256sum "$ROOT/web/$image" | awk '{print $1}')
   bundle_hash=$(unzip -p "$webapp" "web/$image" | sha256sum | awk '{print $1}')
   [[ $source_hash == "$bundle_hash" ]] || fail "Vercel bundle changed official binary asset: $image"
@@ -94,7 +94,7 @@ done
 query() { rpm -qp --qf "$2" "$1"; }
 [[ $(query "$client" '%{NAME}') == "$NLI_CLIENT_PACKAGE" ]] || fail "client package name mismatch"
 [[ $(query "$controller" '%{NAME}') == "$NLI_CONTROLLER_PACKAGE" ]] || fail "controller package name mismatch"
-expected_repo='https://github.com/vjay136/nexora_log_intelligence_ver18.git'
+expected_repo='https://github.com/vjay136/nexora_log_intelligence_ver19.git'
 [[ $(query "$client" '%{URL}') == "$expected_repo" ]] || fail "client package repository URL mismatch"
 [[ $(query "$controller" '%{URL}') == "$expected_repo" ]] || fail "controller package repository URL mismatch"
 rpm -qp --requires "$controller" | grep -Fxq hostname || fail "controller RPM does not declare the hostname setup dependency"
@@ -107,10 +107,10 @@ for rpm_file in "$client" "$controller"; do
 done
 
 # Exercise the exact operator path that previously rejected valid distro-suffixed
-# releases such as 2.el9. This verifies package identity, V18 version, release
+# releases such as 2.el9. This verifies package identity, V19 version, release
 # syntax, architecture, and the bundle checksum without changing the host.
-bash "$bundle_dir/install-controller-ver18.sh" --verify-only --rpm "$bundle_dir/nli_controller_agent_ver18.rpm"
-bash "$bundle_dir/install-client-ver18.sh" --verify-only --rpm "$bundle_dir/nli_client_ver18.rpm"
+bash "$bundle_dir/install-controller-ver19.sh" --verify-only --rpm "$bundle_dir/nli_controller_agent_ver19.rpm"
+bash "$bundle_dir/install-client-ver19.sh" --verify-only --rpm "$bundle_dir/nli_client_ver19.rpm"
 
 client_payload=$(rpm -qpl "$client")
 controller_payload=$(rpm -qpl "$controller")
@@ -121,9 +121,9 @@ for path in /usr/bin/nli /usr/bin/nli-agent /usr/bin/nli-client-control /usr/bin
   grep -Fxq "$path" <<<"$client_payload" || fail "client payload missing $path"
 done
 for path in /usr/bin/nli-controller-agent /usr/sbin/nli-controller-setup /usr/sbin/nli-supabase-setup /usr/sbin/nli-admin-reset /usr/share/nli/supabase/nli_schema.sql /etc/nli/controller.json \
-  /usr/lib/systemd/system/nli-controller-agent.service /usr/lib/systemd/system/nli-controller-bootstrap.service /usr/share/nli/webview_ver18/index.html \
-  /usr/share/nli/webview_ver18/styles.css /usr/share/nli/webview_ver18/app.js /usr/share/nli/webview_ver18/nli-mark.svg /usr/share/nli/webview_ver18/nexora-logo-v18.png /usr/share/nli/webview_ver18/login-banner-v18.png /usr/share/nli/webview_ver18/nexora-poster-v18.png /usr/share/nli/webview_ver18/README.txt \
-  /usr/share/nli/webview_ver18/Open-NLI-WebView.ps1; do
+  /usr/lib/systemd/system/nli-controller-agent.service /usr/lib/systemd/system/nli-controller-bootstrap.service /usr/share/nli/webview_ver19/index.html \
+  /usr/share/nli/webview_ver19/styles.css /usr/share/nli/webview_ver19/app.js /usr/share/nli/webview_ver19/nli-mark.svg /usr/share/nli/webview_ver19/nexora-logo-v19.png /usr/share/nli/webview_ver19/login-banner-v19.png /usr/share/nli/webview_ver19/nexora-poster-v19.png /usr/share/nli/webview_ver19/README.txt \
+  /usr/share/nli/webview_ver19/Open-NLI-WebView.ps1; do
   grep -Fxq "$path" <<<"$controller_payload" || fail "controller payload missing $path"
 done
 ! grep -Eq 'webview_ver1(/|$)' <<<"$controller_payload" || fail "controller payload contains webview_ver1"
@@ -131,15 +131,15 @@ done
 expected_assets=$(wc -l <"$ARTIFACT_DIR/WEBVIEW_SHA256SUMS")
 web_entries=$(unzip -Z1 "$web")
 zip_assets=$(grep -vc '/$' <<<"$web_entries")
-rpm_assets=$(rpm -qp --dump "$controller" | awk '$1 ~ "^/usr/share/nli/webview_ver18/" && $5 ~ /^010/ {count++} END {print count+0}')
+rpm_assets=$(rpm -qp --dump "$controller" | awk '$1 ~ "^/usr/share/nli/webview_ver19/" && $5 ~ /^010/ {count++} END {print count+0}')
 [[ $expected_assets -eq 9 && $expected_assets -eq $zip_assets && $expected_assets -eq $rpm_assets ]] || fail "WebView asset counts differ or include unexpected files: manifest=$expected_assets zip=$zip_assets rpm=$rpm_assets"
 for forbidden in e2e.spec.js package.json playwright.config.js; do
   ! grep -Fq "/$forbidden" <<<"$web_entries" || fail "WebView ZIP contains development-only asset $forbidden"
-  ! grep -Fq "/usr/share/nli/webview_ver18/$forbidden" <<<"$controller_payload" || fail "controller RPM contains development-only asset $forbidden"
+  ! grep -Fq "/usr/share/nli/webview_ver19/$forbidden" <<<"$controller_payload" || fail "controller RPM contains development-only asset $forbidden"
 done
 while read -r expected relative; do
-  zip_hash=$(unzip -p "$web" "webview_ver18/$relative" | sha256sum | awk '{print $1}')
-  rpm_hash=$(rpm -qp --dump "$controller" | awk -v path="/usr/share/nli/webview_ver18/$relative" '$1==path {print $4}')
+  zip_hash=$(unzip -p "$web" "webview_ver19/$relative" | sha256sum | awk '{print $1}')
+  rpm_hash=$(rpm -qp --dump "$controller" | awk -v path="/usr/share/nli/webview_ver19/$relative" '$1==path {print $4}')
   [[ $expected == "$zip_hash" && $expected == "$rpm_hash" ]] || fail "WebView asset mismatch: $relative"
 done <"$ARTIFACT_DIR/WEBVIEW_SHA256SUMS"
 

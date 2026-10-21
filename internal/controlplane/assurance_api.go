@@ -18,9 +18,9 @@ import (
 	"strings"
 	"time"
 
-	"nexora.local/nli-v18/internal/middleware"
-	"nexora.local/nli-v18/internal/registry"
-	metastore "nexora.local/nli-v18/internal/store"
+	"nexora.local/nli-v19/internal/middleware"
+	"nexora.local/nli-v19/internal/registry"
+	metastore "nexora.local/nli-v19/internal/store"
 )
 
 type aiProviderConfig struct {

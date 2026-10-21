@@ -29,36 +29,37 @@ mkdir -p "$OUTPUT_DIR" "$WORK_DIR"
 [[ -z $(find "$WORK_DIR" -mindepth 1 -print -quit) ]] || fail "work directory is not empty"
 for tool in rpmbuild rpm zip unzip file sha256sum tar gzip python3; do command -v "$tool" >/dev/null || fail "missing tool: $tool"; done
 
-install -m 0755 "$ROOT/scripts/install-controller-ver18.sh" "$OUTPUT_DIR/install-controller-ver18.sh"
-install -m 0755 "$ROOT/scripts/install-client-ver18.sh" "$OUTPUT_DIR/install-client-ver18.sh"
-install -m 0755 "$ROOT/scripts/install-controller-aws-ver18.sh" "$ROOT/scripts/install-client-aws-ver18.sh" "$ROOT/scripts/install-controller-aws-cloudflare-ver18.sh" "$ROOT/scripts/aws-rhel-preflight-ver18.sh" "$ROOT/scripts/aws-security-group-plan-ver18.sh" "$OUTPUT_DIR/"
-install -m 0755 "$ROOT/scripts/setup-cloudflare-tunnel-v18.sh" "$ROOT/scripts/verify-cloudflare-tunnel-v18.sh" "$ROOT/scripts/uninstall-cloudflare-tunnel-v18.sh" "$ROOT/scripts/cloudflare-quick-diagnosis-v18.sh" "$OUTPUT_DIR/"
+install -m 0755 "$ROOT/scripts/install-controller-ver19.sh" "$OUTPUT_DIR/install-controller-ver19.sh"
+install -m 0755 "$ROOT/scripts/install-client-ver19.sh" "$OUTPUT_DIR/install-client-ver19.sh"
+install -m 0755 "$ROOT/scripts/install-controller-aws-ver19.sh" "$ROOT/scripts/install-client-aws-ver19.sh" "$ROOT/scripts/install-controller-aws-cloudflare-ver19.sh" "$ROOT/scripts/aws-rhel-preflight-ver19.sh" "$ROOT/scripts/aws-security-group-plan-ver19.sh" "$OUTPUT_DIR/"
+install -m 0755 "$ROOT/scripts/setup-cloudflare-tunnel-v19.sh" "$ROOT/scripts/verify-cloudflare-tunnel-v19.sh" "$ROOT/scripts/uninstall-cloudflare-tunnel-v19.sh" "$ROOT/scripts/cloudflare-quick-diagnosis-v19.sh" "$OUTPUT_DIR/"
 install -m 0644 "$ROOT/scripts/vercel-preflight.mjs" "$OUTPUT_DIR/vercel-preflight.mjs"
-install -m 0755 "$ROOT/scripts/uninstall-controller-ver18.sh" "$OUTPUT_DIR/uninstall-controller-ver18.sh"
-install -m 0755 "$ROOT/scripts/uninstall-client-ver18.sh" "$OUTPUT_DIR/uninstall-client-ver18.sh"
+install -m 0755 "$ROOT/scripts/uninstall-controller-ver19.sh" "$OUTPUT_DIR/uninstall-controller-ver19.sh"
+install -m 0755 "$ROOT/scripts/uninstall-client-ver19.sh" "$OUTPUT_DIR/uninstall-client-ver19.sh"
 install -m 0644 "$ROOT/docs/INSTALLATION_AND_CONFIGURATION.md" "$OUTPUT_DIR/INSTALLATION_AND_CONFIGURATION.md"
 install -m 0644 "$ROOT/docs/WEBAPP_OPERATOR_AND_PARSER_GUIDE.md" "$OUTPUT_DIR/WEBAPP_OPERATOR_AND_PARSER_GUIDE.md"
-install -m 0644 "$ROOT/docs/V18_AWS_RED_HAT_INSTALLATION.md" "$OUTPUT_DIR/V18_AWS_RED_HAT_INSTALLATION.md"
-install -m 0644 "$ROOT/docs/V18_CLOUDFLARE_TUNNEL.md" "$OUTPUT_DIR/V18_CLOUDFLARE_TUNNEL.md"
+install -m 0644 "$ROOT/docs/V19_AWS_RED_HAT_INSTALLATION.md" "$OUTPUT_DIR/V19_AWS_RED_HAT_INSTALLATION.md"
+install -m 0644 "$ROOT/docs/V19_CLOUDFLARE_TUNNEL.md" "$OUTPUT_DIR/V19_CLOUDFLARE_TUNNEL.md"
 install -m 0644 "$ROOT/docs/VERCEL_DEPLOYMENT.md" "$OUTPUT_DIR/VERCEL_DEPLOYMENT.md"
 install -m 0644 "$ROOT/docs/CLOUDFLARE_PAGES_DEPLOYMENT.md" "$OUTPUT_DIR/CLOUDFLARE_PAGES_DEPLOYMENT.md"
 install -m 0644 "$ROOT/docs/PARSER_CATALOG.md" "$OUTPUT_DIR/PARSER_CATALOG.md"
+install -m 0644 "$ROOT/docs/release/V19_MIGRATION_AND_ROLLBACK.md" "$OUTPUT_DIR/V19_MIGRATION_AND_ROLLBACK.md"
 cat >"$OUTPUT_DIR/RELEASE_ID" <<EOF
 NLI_VERSION=$NLI_VERSION
 NLI_RELEASE=$NLI_RELEASE
 NLI_ARCH=$NLI_ARCH
 SOURCE_REVISION=$SOURCE_REVISION
 EOF
-normalize_lf "$OUTPUT_DIR/install-controller-ver18.sh" "$OUTPUT_DIR/install-client-ver18.sh" \
-  "$OUTPUT_DIR/uninstall-controller-ver18.sh" "$OUTPUT_DIR/uninstall-client-ver18.sh" \
-  "$OUTPUT_DIR/install-controller-aws-ver18.sh" "$OUTPUT_DIR/install-client-aws-ver18.sh" \
-  "$OUTPUT_DIR/install-controller-aws-cloudflare-ver18.sh" \
-  "$OUTPUT_DIR/aws-rhel-preflight-ver18.sh" "$OUTPUT_DIR/aws-security-group-plan-ver18.sh" \
-  "$OUTPUT_DIR/setup-cloudflare-tunnel-v18.sh" "$OUTPUT_DIR/verify-cloudflare-tunnel-v18.sh" \
-  "$OUTPUT_DIR/uninstall-cloudflare-tunnel-v18.sh" "$OUTPUT_DIR/cloudflare-quick-diagnosis-v18.sh" \
+normalize_lf "$OUTPUT_DIR/install-controller-ver19.sh" "$OUTPUT_DIR/install-client-ver19.sh" \
+  "$OUTPUT_DIR/uninstall-controller-ver19.sh" "$OUTPUT_DIR/uninstall-client-ver19.sh" \
+  "$OUTPUT_DIR/install-controller-aws-ver19.sh" "$OUTPUT_DIR/install-client-aws-ver19.sh" \
+  "$OUTPUT_DIR/install-controller-aws-cloudflare-ver19.sh" \
+  "$OUTPUT_DIR/aws-rhel-preflight-ver19.sh" "$OUTPUT_DIR/aws-security-group-plan-ver19.sh" \
+  "$OUTPUT_DIR/setup-cloudflare-tunnel-v19.sh" "$OUTPUT_DIR/verify-cloudflare-tunnel-v19.sh" \
+  "$OUTPUT_DIR/uninstall-cloudflare-tunnel-v19.sh" "$OUTPUT_DIR/cloudflare-quick-diagnosis-v19.sh" \
   "$OUTPUT_DIR/vercel-preflight.mjs" \
-  "$OUTPUT_DIR/INSTALLATION_AND_CONFIGURATION.md" "$OUTPUT_DIR/WEBAPP_OPERATOR_AND_PARSER_GUIDE.md" "$OUTPUT_DIR/V18_AWS_RED_HAT_INSTALLATION.md" \
-  "$OUTPUT_DIR/V18_CLOUDFLARE_TUNNEL.md" "$OUTPUT_DIR/VERCEL_DEPLOYMENT.md" "$OUTPUT_DIR/CLOUDFLARE_PAGES_DEPLOYMENT.md" "$OUTPUT_DIR/PARSER_CATALOG.md" \
+  "$OUTPUT_DIR/INSTALLATION_AND_CONFIGURATION.md" "$OUTPUT_DIR/WEBAPP_OPERATOR_AND_PARSER_GUIDE.md" "$OUTPUT_DIR/V19_AWS_RED_HAT_INSTALLATION.md" \
+  "$OUTPUT_DIR/V19_CLOUDFLARE_TUNNEL.md" "$OUTPUT_DIR/V19_MIGRATION_AND_ROLLBACK.md" "$OUTPUT_DIR/VERCEL_DEPLOYMENT.md" "$OUTPUT_DIR/CLOUDFLARE_PAGES_DEPLOYMENT.md" "$OUTPUT_DIR/PARSER_CATALOG.md" \
   "$OUTPUT_DIR/RELEASE_ID"
 
 for binary in nli nli-agent nli-client-control nli-bench nli-controller-agent; do
@@ -86,9 +87,9 @@ while IFS= read -r -d '' text_file; do normalize_lf "$text_file"; done < <(
 normalize_lf "$CLIENT/README.md"
 normalize_lf "$CLIENT/PARSER_CATALOG.md"
 
-WEB_ROOT="$STAGE/webview_ver18"
+WEB_ROOT="$STAGE/webview_ver19"
 mkdir -p "$WEB_ROOT"
-runtime_web_assets=(index.html styles.css app.js nli-mark.svg nexora-logo-v18.png login-banner-v18.png nexora-poster-v18.png README.txt Open-NLI-WebView.ps1)
+runtime_web_assets=(index.html styles.css app.js nli-mark.svg nexora-logo-v19.png login-banner-v19.png nexora-poster-v19.png README.txt Open-NLI-WebView.ps1)
 for relative in "${runtime_web_assets[@]}"; do
   asset="$ROOT/web/$relative"
   [[ -s $asset ]] || fail "missing production WebView asset: $relative"
@@ -107,10 +108,10 @@ find "$WEB_ROOT" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
 [[ -s "$OUTPUT_DIR/WEBVIEW_SHA256SUMS" ]] || fail "WebView asset manifest is empty"
 (
   cd "$STAGE"
-  find webview_ver18 -type f -print | LC_ALL=C sort | zip -X -q "$OUTPUT_DIR/webview_ver18.zip" -@
+  find webview_ver19 -type f -print | LC_ALL=C sort | zip -X -q "$OUTPUT_DIR/webview_ver19.zip" -@
 )
 
-python3 "$ROOT/scripts/release/build-webapp.py" --root "$ROOT" --output "$OUTPUT_DIR/webapp_ver18.zip" --epoch "$SOURCE_DATE_EPOCH"
+python3 "$ROOT/scripts/release/build-webapp.py" --root "$ROOT" --output "$OUTPUT_DIR/webapp_ver19.zip" --epoch "$SOURCE_DATE_EPOCH"
 
 CONTROLLER="$STAGE/nli-controller-agent-$NLI_VERSION"
 mkdir -p "$CONTROLLER"/{bin,sbin,configs,systemd,web,supabase}
@@ -156,48 +157,48 @@ rpmbuild "${rpm_args[@]}" -bb "$TOP/SPECS/nli-controller-agent.spec"
 client_rpm=$(find "$TOP/RPMS" -type f -name 'nli-client-*.x86_64.rpm' -print -quit)
 controller_rpm=$(find "$TOP/RPMS" -type f -name 'nli-controller-agent-*.x86_64.rpm' -print -quit)
 [[ -n $client_rpm && -n $controller_rpm ]] || fail "rpmbuild did not produce both RPMs"
-install -m 0644 "$client_rpm" "$OUTPUT_DIR/nli_client_ver18.rpm"
-install -m 0644 "$controller_rpm" "$OUTPUT_DIR/nli_controller_agent_ver18.rpm"
-cp -f "$OUTPUT_DIR/nli_client_ver18.rpm" "$OUTPUT_DIR/nli_clinet_ver18.rpm"
+install -m 0644 "$client_rpm" "$OUTPUT_DIR/nli_client_ver19.rpm"
+install -m 0644 "$controller_rpm" "$OUTPUT_DIR/nli_controller_agent_ver19.rpm"
+cp -f "$OUTPUT_DIR/nli_client_ver19.rpm" "$OUTPUT_DIR/nli_clinet_ver19.rpm"
 install -m 0644 "$BIN_ROOT/SOURCE_BINARY_PROVENANCE.txt" "$OUTPUT_DIR/SOURCE_BINARY_PROVENANCE.txt"
 printf '%s\n' "$SOURCE_REVISION" >"$OUTPUT_DIR/SOURCE_REVISION"
 
 for rpm_file in "$OUTPUT_DIR"/*.rpm; do
   [[ $(od -An -tx1 -N4 "$rpm_file" | tr -d ' \n') == edabeedb ]] || fail "non-RPM output: $rpm_file"
 done
-cmp -s "$OUTPUT_DIR/nli_client_ver18.rpm" "$OUTPUT_DIR/nli_clinet_ver18.rpm" || fail "client alias differs"
-rpm -qpi "$OUTPUT_DIR/nli_client_ver18.rpm" >"$OUTPUT_DIR/nli_client_ver18.rpm.info.txt"
-rpm -qpi "$OUTPUT_DIR/nli_controller_agent_ver18.rpm" >"$OUTPUT_DIR/nli_controller_agent_ver18.rpm.info.txt"
-rpm -qpl "$OUTPUT_DIR/nli_client_ver18.rpm" >"$OUTPUT_DIR/nli_client_ver18.files.txt"
-rpm -qpl "$OUTPUT_DIR/nli_controller_agent_ver18.rpm" >"$OUTPUT_DIR/nli_controller_agent_ver18.files.txt"
-rpm -qp --qf '[%{FILENAMES} %{FILEMODES:perms} %{FILEUSERNAME} %{FILEGROUPNAME}\n]' "$OUTPUT_DIR/nli_client_ver18.rpm" >"$OUTPUT_DIR/nli_client_ver18.permissions.txt"
-rpm -qp --qf '[%{FILENAMES} %{FILEMODES:perms} %{FILEUSERNAME} %{FILEGROUPNAME}\n]' "$OUTPUT_DIR/nli_controller_agent_ver18.rpm" >"$OUTPUT_DIR/nli_controller_agent_ver18.permissions.txt"
+cmp -s "$OUTPUT_DIR/nli_client_ver19.rpm" "$OUTPUT_DIR/nli_clinet_ver19.rpm" || fail "client alias differs"
+rpm -qpi "$OUTPUT_DIR/nli_client_ver19.rpm" >"$OUTPUT_DIR/nli_client_ver19.rpm.info.txt"
+rpm -qpi "$OUTPUT_DIR/nli_controller_agent_ver19.rpm" >"$OUTPUT_DIR/nli_controller_agent_ver19.rpm.info.txt"
+rpm -qpl "$OUTPUT_DIR/nli_client_ver19.rpm" >"$OUTPUT_DIR/nli_client_ver19.files.txt"
+rpm -qpl "$OUTPUT_DIR/nli_controller_agent_ver19.rpm" >"$OUTPUT_DIR/nli_controller_agent_ver19.files.txt"
+rpm -qp --qf '[%{FILENAMES} %{FILEMODES:perms} %{FILEUSERNAME} %{FILEGROUPNAME}\n]' "$OUTPUT_DIR/nli_client_ver19.rpm" >"$OUTPUT_DIR/nli_client_ver19.permissions.txt"
+rpm -qp --qf '[%{FILENAMES} %{FILEMODES:perms} %{FILEUSERNAME} %{FILEGROUPNAME}\n]' "$OUTPUT_DIR/nli_controller_agent_ver19.rpm" >"$OUTPUT_DIR/nli_controller_agent_ver19.permissions.txt"
 
 for required in /usr/bin/nli /usr/bin/nli-agent /usr/bin/nli-client-control /usr/bin/nli-bench /usr/sbin/nli-client-setup /etc/nli/nli.json /etc/nli/parsers /usr/share/doc/nli-client/PARSER_CATALOG.md /usr/lib/systemd/system/nli-agent.service /usr/lib/systemd/system/nli-client-control.service /usr/lib/systemd/system/nli-client-bootstrap.service /var/lib/nli /var/lib/nli-control-client /var/log/nli/input /var/log/nli/output; do
-  grep -Fxq "$required" "$OUTPUT_DIR/nli_client_ver18.files.txt" || fail "client payload missing $required"
+  grep -Fxq "$required" "$OUTPUT_DIR/nli_client_ver19.files.txt" || fail "client payload missing $required"
 done
 mapfile -t profile_assets < <(find "$ROOT/configs/parsers" -maxdepth 1 -type f -name '*.parserpack.json' -printf '%f\n' | LC_ALL=C sort)
 [[ ${#profile_assets[@]} -ge 8 ]] || fail "expected at least the eight reviewed baseline parser profiles"
 for asset in "${profile_assets[@]}"; do
   installed="/etc/nli/parsers/$asset"
-  grep -Fxq "$installed" "$OUTPUT_DIR/nli_client_ver18.files.txt" || fail "client payload missing reviewed profile $installed"
-  grep -Fxq "$installed -rw-r--r-- root nli" "$OUTPUT_DIR/nli_client_ver18.permissions.txt" || fail "reviewed profile has wrong mode/owner: $installed"
+  grep -Fxq "$installed" "$OUTPUT_DIR/nli_client_ver19.files.txt" || fail "client payload missing reviewed profile $installed"
+  grep -Fxq "$installed -rw-r--r-- root nli" "$OUTPUT_DIR/nli_client_ver19.permissions.txt" || fail "reviewed profile has wrong mode/owner: $installed"
   source_hash=$(sed 's/\r$//' "$ROOT/configs/parsers/$asset" | sha256sum | awk '{print $1}')
-  rpm_hash=$(rpm -qp --dump "$OUTPUT_DIR/nli_client_ver18.rpm" | awk -v path="$installed" '$1==path {print $4}')
+  rpm_hash=$(rpm -qp --dump "$OUTPUT_DIR/nli_client_ver19.rpm" | awk -v path="$installed" '$1==path {print $4}')
   [[ -n $rpm_hash && $source_hash == "$rpm_hash" ]] || fail "reviewed profile differs in RPM: $asset"
 done
-[[ $(grep -Ec '^/etc/nli/parsers/[^/]+\.parserpack\.json$' "$OUTPUT_DIR/nli_client_ver18.files.txt") -eq ${#profile_assets[@]} ]] || fail "unexpected reviewed profile count in client RPM"
-for required in /usr/bin/nli-controller-agent /usr/bin/nli /usr/sbin/nli-controller-setup /usr/sbin/nli-supabase-setup /usr/sbin/nli-admin-reset /usr/share/nli/supabase/nli_schema.sql /etc/nli/controller.json /etc/nli/geoip.env /usr/lib/systemd/system/nli-controller-agent.service /usr/lib/systemd/system/nli-controller-bootstrap.service /usr/lib/systemd/system/nli-geoip-update.service /usr/lib/systemd/system/nli-geoip-update.timer /usr/share/nli/webview_ver18/index.html /usr/share/nli/webview_ver18/styles.css /usr/share/nli/webview_ver18/app.js /usr/share/nli/webview_ver18/nli-mark.svg /usr/share/nli/webview_ver18/nexora-logo-v18.png /usr/share/nli/webview_ver18/login-banner-v18.png /usr/share/nli/webview_ver18/nexora-poster-v18.png /usr/share/nli/webview_ver18/README.txt /usr/share/nli/webview_ver18/Open-NLI-WebView.ps1 /var/lib/nli-controller; do
-  grep -Fxq "$required" "$OUTPUT_DIR/nli_controller_agent_ver18.files.txt" || fail "controller payload missing $required"
+[[ $(grep -Ec '^/etc/nli/parsers/[^/]+\.parserpack\.json$' "$OUTPUT_DIR/nli_client_ver19.files.txt") -eq ${#profile_assets[@]} ]] || fail "unexpected reviewed profile count in client RPM"
+for required in /usr/bin/nli-controller-agent /usr/bin/nli /usr/sbin/nli-controller-setup /usr/sbin/nli-supabase-setup /usr/sbin/nli-admin-reset /usr/share/nli/supabase/nli_schema.sql /etc/nli/controller.json /etc/nli/geoip.env /usr/lib/systemd/system/nli-controller-agent.service /usr/lib/systemd/system/nli-controller-bootstrap.service /usr/lib/systemd/system/nli-geoip-update.service /usr/lib/systemd/system/nli-geoip-update.timer /usr/share/nli/webview_ver19/index.html /usr/share/nli/webview_ver19/styles.css /usr/share/nli/webview_ver19/app.js /usr/share/nli/webview_ver19/nli-mark.svg /usr/share/nli/webview_ver19/nexora-logo-v19.png /usr/share/nli/webview_ver19/login-banner-v19.png /usr/share/nli/webview_ver19/nexora-poster-v19.png /usr/share/nli/webview_ver19/README.txt /usr/share/nli/webview_ver19/Open-NLI-WebView.ps1 /var/lib/nli-controller; do
+  grep -Fxq "$required" "$OUTPUT_DIR/nli_controller_agent_ver19.files.txt" || fail "controller payload missing $required"
 done
-! grep -Eq 'webview_ver(1|5|6|7)(/|$)' "$OUTPUT_DIR/nli_controller_agent_ver18.files.txt" || fail "stale pre-V18 WebView payload"
+! grep -Eq 'webview_ver(1|5|6|7)(/|$)' "$OUTPUT_DIR/nli_controller_agent_ver19.files.txt" || fail "stale pre-V19 WebView payload"
 expected_assets=$(wc -l <"$OUTPUT_DIR/WEBVIEW_SHA256SUMS")
-zip_assets=$(unzip -Z1 "$OUTPUT_DIR/webview_ver18.zip" | grep -vc '/$')
-rpm_assets=$(rpm -qp --dump "$OUTPUT_DIR/nli_controller_agent_ver18.rpm" | awk '$1 ~ "^/usr/share/nli/webview_ver18/" && $5 ~ /^010/ {count++} END {print count+0}')
+zip_assets=$(unzip -Z1 "$OUTPUT_DIR/webview_ver19.zip" | grep -vc '/$')
+rpm_assets=$(rpm -qp --dump "$OUTPUT_DIR/nli_controller_agent_ver19.rpm" | awk '$1 ~ "^/usr/share/nli/webview_ver19/" && $5 ~ /^010/ {count++} END {print count+0}')
 [[ $expected_assets -eq $zip_assets && $expected_assets -eq $rpm_assets ]] || fail "WebView asset counts differ: source=$expected_assets zip=$zip_assets rpm=$rpm_assets"
 while read -r expected relative; do
-  zip_hash=$(unzip -p "$OUTPUT_DIR/webview_ver18.zip" "webview_ver18/$relative" | sha256sum | awk '{print $1}')
-  rpm_hash=$(rpm -qp --dump "$OUTPUT_DIR/nli_controller_agent_ver18.rpm" | awk -v path="/usr/share/nli/webview_ver18/$relative" '$1==path {print $4}')
+  zip_hash=$(unzip -p "$OUTPUT_DIR/webview_ver19.zip" "webview_ver19/$relative" | sha256sum | awk '{print $1}')
+  rpm_hash=$(rpm -qp --dump "$OUTPUT_DIR/nli_controller_agent_ver19.rpm" | awk -v path="/usr/share/nli/webview_ver19/$relative" '$1==path {print $4}')
   [[ $expected == "$zip_hash" && $expected == "$rpm_hash" ]] || fail "WebView asset differs: $relative"
 done <"$OUTPUT_DIR/WEBVIEW_SHA256SUMS"
 echo "RPM build: PASS"

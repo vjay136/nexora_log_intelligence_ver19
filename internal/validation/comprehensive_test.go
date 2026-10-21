@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v18/internal/auditlog"
-	"nexora.local/nli-v18/internal/auth"
-	"nexora.local/nli-v18/internal/controlplane"
-	"nexora.local/nli-v18/internal/engine"
-	"nexora.local/nli-v18/internal/middleware"
+	"nexora.local/nli-v19/internal/auditlog"
+	"nexora.local/nli-v19/internal/auth"
+	"nexora.local/nli-v19/internal/controlplane"
+	"nexora.local/nli-v19/internal/engine"
+	"nexora.local/nli-v19/internal/middleware"
 )
 
 // ValidationSuite contains all validation tests for NLI v5

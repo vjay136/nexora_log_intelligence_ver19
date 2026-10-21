@@ -22,19 +22,19 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"nexora.local/nli-v18/internal/adapter"
-	"nexora.local/nli-v18/internal/ai"
-	"nexora.local/nli-v18/internal/drain"
-	"nexora.local/nli-v18/internal/engine"
-	"nexora.local/nli-v18/internal/enrichment"
-	"nexora.local/nli-v18/internal/familyprofile"
-	"nexora.local/nli-v18/internal/masker"
-	"nexora.local/nli-v18/internal/multiline"
-	"nexora.local/nli-v18/internal/output"
-	"nexora.local/nli-v18/internal/quarantine"
-	"nexora.local/nli-v18/internal/registry"
-	"nexora.local/nli-v18/internal/routing"
-	"nexora.local/nli-v18/telemetry"
+	"nexora.local/nli-v19/internal/adapter"
+	"nexora.local/nli-v19/internal/ai"
+	"nexora.local/nli-v19/internal/drain"
+	"nexora.local/nli-v19/internal/engine"
+	"nexora.local/nli-v19/internal/enrichment"
+	"nexora.local/nli-v19/internal/familyprofile"
+	"nexora.local/nli-v19/internal/masker"
+	"nexora.local/nli-v19/internal/multiline"
+	"nexora.local/nli-v19/internal/output"
+	"nexora.local/nli-v19/internal/quarantine"
+	"nexora.local/nli-v19/internal/registry"
+	"nexora.local/nli-v19/internal/routing"
+	"nexora.local/nli-v19/telemetry"
 )
 
 // InputConfig describes one monitored log file.
@@ -1120,7 +1120,7 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 			}
 			legacyWindowsCheckpoint := runtime.GOOS == "windows" && t.hasCheckpoint && t.state.Device == 0 && dev != 0 && t.state.Offset <= info.Size()
 			if legacyWindowsCheckpoint {
-				// Releases before V18 derived the Windows identity from modification
+				// Releases before V19 derived the Windows identity from modification
 				// time. Preserve the acknowledged offset once while migrating that
 				// checkpoint to the stable volume/file-index identity.
 				t.state.Device = dev

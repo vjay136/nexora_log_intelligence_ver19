@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"nexora.local/nli-v18/internal/middleware"
-	"nexora.local/nli-v18/internal/registry"
-	metastore "nexora.local/nli-v18/internal/store"
+	"nexora.local/nli-v19/internal/middleware"
+	"nexora.local/nli-v19/internal/registry"
+	metastore "nexora.local/nli-v19/internal/store"
 )
 
 const (
@@ -178,12 +178,20 @@ func (s *Server) handleNAPISynthesize(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "NAPI draft persistence failed", http.StatusServiceUnavailable)
 		return
 	}
+	nupireRecord, nupireErr := s.registerNAPICandidate(r.Context(), id, input.Version, principal.Username, selected, input.Discovery, input.HeldOut)
+	if nupireErr != nil {
+		s.auditAction(principal, "nupire.napi.bind", "parser-packs/"+id, "failure", map[string]string{"reason": nupireErr.Error()})
+		nupireRecord = map[string]any{"state": "unavailable", "reason": nupireErr.Error()}
+	} else {
+		s.auditAction(principal, "nupire.napi.bind", "parser-packs/"+id, "success", map[string]string{"candidate_id": fmt.Sprint(nupireRecord["id"]), "state": fmt.Sprint(nupireRecord["state"])})
+	}
 	s.auditAction(principal, "napi.synthesize", "parser-packs/"+id, "success", map[string]string{"state": "draft", "strategy": selected.Strategy, "held_out": fmt.Sprint(len(input.HeldOut))})
 	jsonCreated(w, map[string]any{
 		"id": id, "revision": saved.Revision, "state": "draft", "draft_created": true,
 		"selected_candidate": selected.ID, "strategy": selected.Strategy,
 		"validation": validation, "regex_safety": selected.Safety,
 		"candidates": reports, "provenance": provenance,
+		"nupire":                  nupireRecord,
 		"requires_human_approval": true, "published": false,
 		"elapsed_us": time.Since(started).Microseconds(),
 	})

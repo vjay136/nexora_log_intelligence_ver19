@@ -1,4 +1,4 @@
-module nexora.local/nli-v18
+module nexora.local/nli-v19
 
 go 1.21
 

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v18/internal/fleet"
-	"nexora.local/nli-v18/telemetry"
+	"nexora.local/nli-v19/internal/fleet"
+	"nexora.local/nli-v19/telemetry"
 )
 
 func syncBatch(node, generation string, sequence uint64, files ...telemetry.StreamFileTelemetry) telemetry.SyncBatch {

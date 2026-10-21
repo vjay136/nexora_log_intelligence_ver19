@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v18/internal/protocol"
-	"nexora.local/nli-v18/internal/rollout"
-	"nexora.local/nli-v18/telemetry"
+	"nexora.local/nli-v19/internal/protocol"
+	"nexora.local/nli-v19/internal/rollout"
+	"nexora.local/nli-v19/telemetry"
 )
 
 type fakeExecutor struct {

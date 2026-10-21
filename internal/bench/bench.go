@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"nexora.local/nli-v18/internal/engine"
+	"nexora.local/nli-v19/internal/engine"
 )
 
 // Report holds benchmark results for one run.

@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"nexora.local/nli-v18/internal/engine"
-	"nexora.local/nli-v18/internal/familyprofile"
-	parserpolicy "nexora.local/nli-v18/parser-policy"
-	"nexora.local/nli-v18/telemetry"
+	"nexora.local/nli-v19/internal/engine"
+	"nexora.local/nli-v19/internal/familyprofile"
+	parserpolicy "nexora.local/nli-v19/parser-policy"
+	"nexora.local/nli-v19/telemetry"
 )
 
 const maxProfileExecutions = 8

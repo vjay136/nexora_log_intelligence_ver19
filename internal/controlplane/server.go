@@ -22,19 +22,20 @@ import (
 	"sync"
 	"time"
 
-	"nexora.local/nli-v18/internal/adapter"
-	"nexora.local/nli-v18/internal/auditlog"
-	"nexora.local/nli-v18/internal/auth"
-	"nexora.local/nli-v18/internal/corpusevidence"
-	"nexora.local/nli-v18/internal/engine"
-	"nexora.local/nli-v18/internal/eventstore"
-	"nexora.local/nli-v18/internal/fleet"
-	"nexora.local/nli-v18/internal/middleware"
-	"nexora.local/nli-v18/internal/protocol"
-	"nexora.local/nli-v18/internal/registry"
-	metastore "nexora.local/nli-v18/internal/store"
-	"nexora.local/nli-v18/internal/wsrelay"
-	"nexora.local/nli-v18/telemetry"
+	"nexora.local/nli-v19/internal/adapter"
+	"nexora.local/nli-v19/internal/auditlog"
+	"nexora.local/nli-v19/internal/auth"
+	"nexora.local/nli-v19/internal/corpusevidence"
+	"nexora.local/nli-v19/internal/engine"
+	"nexora.local/nli-v19/internal/eventstore"
+	"nexora.local/nli-v19/internal/fleet"
+	"nexora.local/nli-v19/internal/middleware"
+	"nexora.local/nli-v19/internal/nupire"
+	"nexora.local/nli-v19/internal/protocol"
+	"nexora.local/nli-v19/internal/registry"
+	metastore "nexora.local/nli-v19/internal/store"
+	"nexora.local/nli-v19/internal/wsrelay"
+	"nexora.local/nli-v19/telemetry"
 )
 
 type Config struct {
@@ -109,6 +110,7 @@ type Server struct {
 	artifactKeys           [][]byte
 	aiMetrics              *aiUsageStore
 	quarantine             *quarantineVault
+	nupire                 nupireController
 	downloadKey            []byte
 }
 
@@ -211,7 +213,12 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{cfg: cfg, auth: authStore, fleet: fleet.New(filepath.Join(cfg.StateDir, "fleet.json")), rollouts: newRolloutStateManager(filepath.Join(cfg.StateDir, "rollouts.json")), parsers: registryStore, events: events, telemetry: telemetryController, streamTelemetry: NewStreamHub(128), metadata: storage, artifactStorage: artifactStorage, storageWarning: warning, audit: auditLogger, security: security, assurance: vault, assuranceDeps: assuranceDeps, hub: wsrelay.NewHub(), enrollmentToken: enrollment, enrollmentConsumedPath: filepath.Join(cfg.StateDir, "consumed-enrollment-tokens.sha256"), aiMetrics: &aiUsageStore{}, quarantine: quarantine}
+	nupireStore, err := nupire.NewStore(filepath.Join(cfg.StateDir, "nupire.json"), nupire.DefaultPolicy())
+	if err != nil {
+		_ = storage.Close()
+		return nil, fmt.Errorf("NUPIRE state: %w", err)
+	}
+	s := &Server{cfg: cfg, auth: authStore, fleet: fleet.New(filepath.Join(cfg.StateDir, "fleet.json")), rollouts: newRolloutStateManager(filepath.Join(cfg.StateDir, "rollouts.json")), parsers: registryStore, events: events, telemetry: telemetryController, streamTelemetry: NewStreamHub(128), metadata: storage, artifactStorage: artifactStorage, storageWarning: warning, audit: auditLogger, security: security, assurance: vault, assuranceDeps: assuranceDeps, hub: wsrelay.NewHub(), enrollmentToken: enrollment, enrollmentConsumedPath: filepath.Join(cfg.StateDir, "consumed-enrollment-tokens.sha256"), aiMetrics: &aiUsageStore{}, quarantine: quarantine, nupire: persistentNUPIREController{store: nupireStore}}
 	s.downloadKey = append([]byte(nil), csrfKey...)
 	s.artifactKeys = parsePublicKeys(cfg)
 	s.mux = http.NewServeMux()
@@ -503,6 +510,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/assurance/run", guard(middleware.PermissionParsePreview, s.handleAssuranceRun))
 	s.mux.HandleFunc("/api/v1/assurance/parser-helper", guard(middleware.PermissionParsePreview, s.handleParserCreationHelper))
 	s.mux.HandleFunc("/api/v1/assurance/napi/synthesize", s.handleNAPISynthesize)
+	s.mux.HandleFunc("/api/v1/nupire/", s.nupireAPI)
+	s.mux.HandleFunc("/api/v1/nupire", s.nupireAPI)
 	s.mux.HandleFunc("/api/v1/assurance/upload", s.handleAssuranceUpload)
 	s.mux.HandleFunc("/api/v1/assurance/corpus", guard(middleware.PermissionParsePreview, s.handleAssuranceCorpus))
 	s.mux.HandleFunc("/api/v1/assurance/cases", s.handleAssuranceCases)
@@ -598,7 +607,7 @@ func jsonError(w http.ResponseWriter, message string, status int) {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("X-NLI-Controller", "v18")
+	w.Header().Set("X-NLI-Controller", "v19")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Allow", "POST, OPTIONS")
 	if r.Method == http.MethodOptions {
@@ -707,7 +716,7 @@ func (s *Server) handleNodeRegister(w http.ResponseWriter, r *http.Request) {
 	// A newly enrolled client receives the current active parser asset bundle
 	// without an operator having to create a second rollout manually.
 	if bundle, err := s.buildActiveParserBundle(r.Context()); err == nil {
-		_, _ = s.startParserBundleRollout(r.Context(), "nli-v18-auto-enrollment", "Initial parser asset synchronization", bundle, []string{request.ID})
+		_, _ = s.startParserBundleRollout(r.Context(), "nli-v19-auto-enrollment", "Initial parser asset synchronization", bundle, []string{request.ID})
 	}
 	jsonCreated(w, protocol.RegisterResponse{Status: "registered", NodeID: request.ID, NodeToken: token})
 }
@@ -1059,7 +1068,7 @@ func countActive(items []*rolloutRecord) int {
 	return count
 }
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("X-NLI-Controller", "v18")
+	w.Header().Set("X-NLI-Controller", "v19")
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
