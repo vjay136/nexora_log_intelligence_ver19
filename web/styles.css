@@ -208,3 +208,14 @@ body.stale #stream-state{color:var(--amber);background:rgba(248,193,92,.12)}
 @media(max-width:1050px){.monitoring-toolbar{position:static}.monitoring-freshness{width:100%;margin-left:0}.monitor-grid{grid-template-columns:1fr}.monitor-grid>.panel{grid-column:1!important}}
 @media(max-width:650px){.monitoring-head{align-items:flex-start;flex-direction:column;padding:15px}.monitoring-live{justify-items:start}.monitoring-toolbar label{flex:1 1 130px}.monitoring-freshness{display:grid;grid-template-columns:auto 1fr}.monitoring-freshness>span{border-left:0;padding-left:0}.monitoring-tabs{margin-inline:-2px}.monitoring-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:430px){.monitoring-kpis{grid-template-columns:1fr}}
+
+/* Keep wide diagnostic tables readable in the dashboard's nested grid. */
+.dashboard-layout>.diagnostic-panel,.monitor-grid>.diagnostic-panel{grid-column:1/-1;min-width:0}
+.diagnostic-panel .section-head{min-width:0}
+.diagnostic-panel .section-head p{max-width:75ch}
+.diagnostic-panel .table-wrap{max-width:100%;overscroll-behavior-inline:contain}
+.diagnostic-panel td{white-space:normal;overflow-wrap:anywhere}
+.filter-contract-note{flex:1 0 100%;margin:0;color:#8491a6;font-size:10px;line-height:1.4}
+.monitoring-toolbar{align-items:flex-end}
+.dashboard-kpi small{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+@media(max-width:650px){.diagnostic-panel{padding:11px!important}.diagnostic-panel .section-head{display:block}.diagnostic-panel .section-head p{margin-top:5px}.filter-contract-note{font-size:9px}.monitoring-freshness{width:100%}}

@@ -192,23 +192,54 @@ test('Monitoring exposes eleven canonical dashboards using only the shared recov
   await page.getByTestId('nav-monitoring').click();
   await expect(page.getByRole('heading', { name: 'NLI Monitoring' })).toBeVisible();
   await expect(page.locator('.monitoring-tabs [role=tab]')).toHaveCount(11);
+  await expect(page.locator('.monitoring-tabs [role=tab][aria-controls]')).toHaveCount(11);
   await expect(page.locator('[data-monitoring-panel=overview]')).toContainText('Ingestion');
   await expect(page.locator('[data-monitoring-panel=overview]')).toContainText('90 rec/s');
   await expect(page.locator('.monitoring-freshness')).toContainText('Revision 7');
 
   await page.getByRole('tab', { name: 'Latency & Synchronization' }).click();
   await expect(page.locator('[data-monitoring-panel=latency]')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Latency & Synchronization' })).toHaveAttribute('aria-selected','true');
   await expect(page.locator('[data-monitoring-panel=latency]')).toContainText('parser latency exceeded warning threshold');
   await expect(page.locator('[data-monitoring-panel=latency]')).toContainText('Inspect parser trace and queue saturation.');
 
   await page.getByRole('tab', { name: 'Infrastructure' }).click();
-  await expect(page.locator('[data-monitoring-panel=infrastructure]')).toContainText('Unavailable');
+  await expect(page.locator('[data-monitoring-panel=infrastructure]')).toContainText('Not reported');
   await expect(page.locator('[data-monitoring-panel=infrastructure]')).toContainText('No fabricated resource metrics.');
+  await expect(page.locator('.filter-contract-note')).toContainText('Component, destination and environment labels are not included');
 
   await page.getByRole('tab', { name: 'Destinations' }).click();
   await expect(page.locator('[data-monitoring-panel=destinations]')).toContainText('unavailable');
   const newRequests = observed.slice(before).filter(item => !item.endsWith('/api/v1/sync/stream'));
   expect(newRequests.every(item => item === 'GET /api/v1/sync/snapshot')).toBe(true);
+});
+
+test('diagnostics span the dashboard grid and remain usable at narrow widths', async ({ page }) => {
+  await mockController(page);
+  await login(page);
+  const diagnostics=page.locator('.diagnostic-panel').last();
+  const desktop=await diagnostics.boundingBox();
+  expect(desktop?.width).toBeGreaterThan(700);
+  await page.setViewportSize({width:390,height:844});
+  const mobile=await diagnostics.boundingBox();
+  expect(mobile?.width).toBeGreaterThan(300);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await expect(diagnostics.locator('.table-wrap')).toBeVisible();
+});
+
+test('empty telemetry uses reported state and never renders NaN', async ({ page }) => {
+  await mockController(page);
+  await page.route(`${origin}/api/v1/sync/snapshot`, route => route.fulfill({
+    status:200,
+    headers:{'content-type':'application/json','x-nli-controller':'v19','x-nli-upstream':'controller'},
+    body:JSON.stringify({schema_version:'nli.sync.v1',revision:0,generated_at:new Date().toISOString(),target_interval_ms:1000,aggregate:{},sources:[],diagnostics:{issues:[]},subsystems:{}}),
+  }));
+  await login(page);
+  await expect(page.locator('.diagnostic-panel')).toContainText('No active latency or error diagnostics');
+  await expect(page.locator('.dashboard-kpi-strip').first()).toContainText('—');
+  await expect(page.locator('#page')).not.toContainText('NaN');
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
 test('NUPIRE workspace displays an explicit empty candidate state', async ({ page }) => {
