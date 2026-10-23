@@ -1,6 +1,6 @@
 # Ver19 master specification implementation matrix
 
-Updated: 2026-10-21
+Updated: 2026-10-23
 
 | Requirement | Implementation | State |
 |---|---|---|
@@ -15,7 +15,7 @@ Updated: 2026-10-21
 | Operator workspace | NUPIRE/EGPE page in `web/app.js` | Implemented with real persisted state and explicit empty/unavailable states |
 | Unsupported/unstructured input | partial/abstain plus existing exact-raw quarantine/replay | Implemented safety path; universal semantics are not claimed |
 | Runtime isolation | Candidate work remains off the client hot path | Implemented architecture boundary |
-| 100 repository legal/research review | `V19_RESEARCH_AND_LICENSE_LEDGER.md` and batch evidence | In progress; release blocker until exact distinct count reaches 100 |
+| 100 repository legal/research review | `V19_RESEARCH_AND_LICENSE_LEDGER.md` and batch evidence | Complete: 100 distinct source-level reviews; incomplete and duplicate candidates excluded |
 | Full RPM/Rocky release validation | CI/release workflow | Pending Linux/container execution |
 | Reproducible signed release | Existing release pipeline with Ver19 identity | Pending all acceptance gates |
 

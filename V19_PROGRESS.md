@@ -1,6 +1,6 @@
 # NLI Ver19 progress and acceptance state
 
-Updated: 2026-10-21
+Updated: 2026-10-23
 
 Ver19 is derived from released Ver18 commit `8a084b8`. The source tree is a
 development candidate until every release gate below passes. This file records
@@ -28,12 +28,12 @@ measured results and does not claim universal log accuracy.
 - Same-host Ver18/Ver19 parser microbenchmarks show no material hot-path
   regression; exact samples and limits are in
   `docs/evidence/V19_V18_LOCAL_PARSER_BENCHMARK.md`.
+- The checked-in research ledger proves 100 distinct source-level upstream
+  reviews. Mirrors, aliases, duplicates, and incomplete inspections are not
+  counted; per-project license and dependency caveats remain explicit.
 
 ## Pending or blocked release gates
 
-- The prompt requires 100 distinct source-level repository reviews. The
-  checked-in ledger proves exactly 77 distinct reviews; 23 remain. The count
-  must not be described as 100 until all evidence rows exist.
 - Docker Desktop is not running on this host. Deterministic RPM creation,
   containerized RPM/systemd checks, Rocky 9/10.2 lifecycle, two-node TLS, and
   release artifact reproduction remain pending and are also enforced by CI.
@@ -47,6 +47,6 @@ measured results and does not claim universal log accuracy.
 Status: **BLOCKED from tagging**, eligible for source publication and CI.
 
 The source may be pushed so GitHub CI can execute the Linux/container gates.
-A `v19.*` tag and GitHub release must wait for the research, RPM, lifecycle,
-upgrade, rollback, and benchmark evidence gates.
+A `v19.*` tag and GitHub release must wait for the RPM, lifecycle, upgrade,
+rollback, race, and production-throughput evidence gates.
 

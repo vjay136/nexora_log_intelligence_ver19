@@ -36,7 +36,17 @@ jobs:
       - name: Test Go and Web contracts
         run: |
           go test ./...
+          go vet ./...
           npm run web:check
+      - name: Run Linux race detector
+        run: go test -race ./...
+      - name: Test Vite production build and browser UI
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+          npm run build
+          npm run test:ui
       - name: Prove deterministic RPM and evidence pipeline
         env:
           NLI_BUILD_SCRATCH: ${{ runner.temp }}
@@ -64,13 +74,16 @@ jobs:
           PREVIOUS_RELEASE_REPO: vjay136/nexora_log_intelligence_ver18
         run: |
           mkdir -p '${{ runner.temp }}/previous'
-          if gh release download "$PREVIOUS_RELEASE_TAG" --repo "$PREVIOUS_RELEASE_REPO" \
-              --pattern '*.rpm' --dir '${{ runner.temp }}/previous'; then
-            echo 'REQUIRE_PREVIOUS=1' >> "$GITHUB_ENV"
-          else
-            echo 'The previous tag has no published RPM assets; running fresh-install and two-node acceptance.'
-            echo 'REQUIRE_PREVIOUS=0' >> "$GITHUB_ENV"
+          gh release view "$PREVIOUS_RELEASE_TAG" --repo "$PREVIOUS_RELEASE_REPO" >/dev/null
+          gh release download "$PREVIOUS_RELEASE_TAG" --repo "$PREVIOUS_RELEASE_REPO" \
+            --pattern '*.rpm' --dir '${{ runner.temp }}/previous'
+          shopt -s nullglob
+          previous_rpms=('${{ runner.temp }}/previous'/*.rpm)
+          if (( ${#previous_rpms[@]} < 2 )); then
+            echo "Expected genuine client and controller RPMs in $PREVIOUS_RELEASE_REPO@$PREVIOUS_RELEASE_TAG" >&2
+            exit 1
           fi
+          echo 'REQUIRE_PREVIOUS=1' >> "$GITHUB_ENV"
       - name: Validate Rocky 9 and Rocky 10.2 lifecycle
         env:
           NLI_BUILD_SCRATCH: ${{ runner.temp }}

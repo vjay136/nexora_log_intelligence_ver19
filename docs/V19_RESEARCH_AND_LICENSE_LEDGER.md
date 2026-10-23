@@ -2,12 +2,14 @@
 
 ## Consolidated status
 
-Review date: 2026-10-21. The checked-in primary-source batches establish **77
+Review date: 2026-10-23. The checked-in primary-source batches establish **100
 distinct upstream repositories reviewed**. This exact count excludes mirrors,
 redirect aliases, duplicate upstreams, repository landing pages, documentation-
 only checks, unavailable files, and entries for which the required source-level
-evidence was incomplete. It does not satisfy the master prompt's 100-repository
-gate, so Ver19 remains blocked from tagging.
+evidence was incomplete. This satisfies the master prompt's numeric research
+gate. It does not approve code reuse: each batch retains its license,
+dependency, maintenance, and security caveats, and no upstream source was
+copied into NLI.
 
 | Evidence file | New distinct reviews counted |
 |---|---:|
@@ -20,7 +22,14 @@ gate, so Ver19 remains blocked from tagging.
 | `research/V19_RESEARCH_BATCH_80_90_DEEP.md` | 2 |
 | `research/V19_RESEARCH_BATCH_95_110_DEEP.md` | 5 |
 | `research/V19_RESEARCH_GAP_C.md` | 2 |
-| **Total** | **77** |
+| `research/V19_RESEARCH_GAP_D1.md` | 7 |
+| `research/V19_RESEARCH_GAP_D2.md` | 1 |
+| `research/V19_RESEARCH_GAP_D3.md` | 5 |
+| `research/V19_RESEARCH_GAP_D4.md` | 2 |
+| `research/V19_RESEARCH_GAP_D5.md` | 2 |
+| `research/V19_RESEARCH_GAP_D6.md` | 1 |
+| `research/V19_RESEARCH_GAP_D7.md` | 5 |
+| **Total** | **100** |
 
 `research/V19_RESEARCH_BATCH_1_13_DEEP.md` is retained as supplemental
 evidence but contributes zero new rows because its qualified Drain3 review is

@@ -106,6 +106,28 @@ if manifest.get("sample_log_record_count") != 728:
         f"{manifest.get('sample_log_record_count')!r}"
     )
 
+workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
+for marker in (
+    "go test -race ./...",
+    "npm run test:ui",
+    "npm run build",
+    "gh release view",
+    "Expected genuine client and controller RPMs",
+    "REQUIRE_PREVIOUS=1",
+):
+    if marker not in workflow:
+        fail(f"release workflow is missing mandatory gate {marker!r}")
+if "REQUIRE_PREVIOUS=0" in workflow:
+    fail("release workflow may silently skip genuine previous-RPM acceptance")
+
+research_ledger = (root / "docs/V19_RESEARCH_AND_LICENSE_LEDGER.md").read_text(encoding="utf-8")
+if "| **Total** | **100** |" not in research_ledger:
+    fail("research ledger does not prove the required exact total of 100 reviews")
+for batch in range(1, 8):
+    name = f"docs/research/V19_RESEARCH_GAP_D{batch}.md"
+    if not (root / name).is_file() or f"`research/V19_RESEARCH_GAP_D{batch}.md`" not in research_ledger:
+        fail(f"research evidence batch is missing from the consolidated ledger: {name}")
+
 for installer_name in required[:2]:
     installer = (root / installer_name).read_text(encoding="utf-8")
     if "rpm_release == 1" in installer or "not release 1" in installer:

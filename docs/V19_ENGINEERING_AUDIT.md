@@ -1,6 +1,6 @@
 # NLI Ver19 engineering audit
 
-Updated: 2026-10-21
+Updated: 2026-10-23
 
 ## Baseline and scope
 
@@ -25,6 +25,9 @@ evolution plane.
 - Authenticated controller API and a controller-backed WebView workspace.
 - Independent approval and the existing signed rollout remain the only route
   into production.
+- A consolidated, deduplicated ledger records 100 distinct source-level
+  upstream reviews with implementation, test/fixture, activity, and license
+  evidence plus explicit reuse caveats.
 
 ## Verification summary
 
@@ -40,8 +43,6 @@ executions in three seconds without a failure.
 - Docker is installed but its daemon is unavailable, so deterministic RPM,
   systemd/container, Rocky lifecycle, two-node TLS, and reproduction gates have
   not run on this host.
-- The mandatory upstream research ledger must contain 100 distinct source-level
-  reviews before a tag; its exact current count is recorded in the ledger.
 - No universal accuracy or hardware-independent throughput claim is made.
 
 The current decision is source-publication eligible and **blocked from release

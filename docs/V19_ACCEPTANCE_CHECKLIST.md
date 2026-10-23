@@ -1,6 +1,6 @@
 # NLI Ver19 acceptance checklist
 
-Updated: 2026-10-21
+Updated: 2026-10-23
 
 | Gate | State | Evidence or remaining action |
 |---|---|---|
@@ -16,7 +16,7 @@ Updated: 2026-10-21
 | Fuzz target | PASS | 110,438 executions / 3 seconds |
 | Shell and installer contracts | PASS | Syntax, client, AWS/controller edge, provenance, SELinux fixture |
 | Race detector | BLOCKED | Requires Linux/CGO CI environment |
-| 100 distinct upstream source reviews | IN PROGRESS | 77 verified, 23 remaining; no padding or duplicate counting |
+| 100 distinct upstream source reviews | PASS | 100 verified across the consolidated ledger and evidence batches; mirrors, aliases, duplicates, and incomplete inspections excluded |
 | Deterministic RPM build and verification | BLOCKED | Docker daemon unavailable locally; CI must run |
 | Rocky 9/10.2 fresh install, upgrade, rollback | BLOCKED | Requires built RPMs and Linux hosts/containers |
 | Two-node TLS/enrollment lifecycle | BLOCKED | Requires Linux integration environment |
