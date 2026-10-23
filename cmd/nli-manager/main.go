@@ -97,9 +97,15 @@ func apiGet(url string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil {
 		return "", err
+	}
+	if len(body) > 1<<20 {
+		return "", fmt.Errorf("manager response exceeds 1048576 bytes")
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return "", fmt.Errorf("manager returned %s: %s", resp.Status, string(body))
 	}
 	return string(body), nil
 }

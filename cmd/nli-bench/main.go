@@ -145,7 +145,11 @@ func runBench(inputFile, service string) (*BenchReport, error) {
 		successfulRouteRate = float64(routes["parsed"]) / float64(total) * 100
 	}
 
-	memMB := float64(memAfter.HeapAlloc-memBefore.HeapAlloc) / 1024 / 1024
+	memDelta := int64(memAfter.HeapAlloc) - int64(memBefore.HeapAlloc)
+	if memDelta < 0 {
+		memDelta = 0
+	}
+	memMB := float64(memDelta) / 1024 / 1024
 
 	return &BenchReport{
 		Timestamp:            time.Now().UTC().Format(time.RFC3339),
