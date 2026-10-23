@@ -156,7 +156,7 @@ test('one canonical synchronization snapshot feeds Command Center, NHLE, NAPI an
     point.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
     return point.closest('.multi-chart')?.querySelector('.chart-hover-readout')?.textContent||'';
   });
-  expect(readout).toMatch(/Input .* records/);
+  await expect.poll(async()=>readout.match(/Input .* records/)?readout:page.locator('[data-chart-category="Input"]').first().evaluate(point=>{point.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));return point.closest('.multi-chart')?.querySelector('.chart-hover-readout')?.textContent||'';})).toMatch(/Input .* records/);
 
   await page.getByTestId('nav-sync-fabric').click();
   await expect(page.getByRole('heading',{name:'Unified Real-Time Synchronization Fabric'})).toBeVisible();
