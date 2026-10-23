@@ -5,6 +5,7 @@
 - Establish the Ver19 release identity across Go imports, web assets, RPM metadata, installers, bundles, and CI tags.
 - Preserve Ver18 as the explicit upgrade source and retain its parser catalog and architecture evidence.
 - Add a bundled migration and rollback note describing state preservation and recovery limits.
+- Add a Ver19 operator and manager demo guide covering every current navigation workspace, significant inner tabs, real-time synchronization behavior, synthetic sample data, and screenshot capture instructions.
 ## [18.0.0-1] - 2026-10-21
 
 - Separate controller transport freshness from per-source activity so idle log
@@ -223,3 +224,4 @@
 - Split the console into Input Parser Engine and Output Parser Engine workspaces.
 - Add bounded ClickHouse field-column mapping while retaining the complete typed event JSON.
 - Preserve normal systemd status metadata while removing only external GitHub documentation links.
+

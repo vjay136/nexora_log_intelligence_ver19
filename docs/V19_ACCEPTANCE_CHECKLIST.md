@@ -3,6 +3,7 @@
 Updated: 2026-10-23
 
 | Gate | State | Evidence or remaining action |
+| Operator and manager demo guide covers current navigation and sync behavior | PASS | `docs/V19_OPERATOR_DEMO_GUIDE.md`; `tests/v19-operator-guide.test.js` checks `NAV` IDs/titles |
 |---|---|---|
 | Ver18 baseline fixed and preserved | PASS | Baseline commit `8a084b8`; baseline Go suite passed before changes |
 | NUPIRE discovery/compiler/lifecycle | PASS | Unit, persistence, API, integration, and browser tests |
@@ -26,3 +27,4 @@ Updated: 2026-10-23
 
 Release decision: **BLOCKED from tagging**. Passing source tests alone does not
 authorize a `v19.*` tag or GitHub release.
+
