@@ -38,6 +38,13 @@ required = (
     "docs/release/V19_MIGRATION_AND_ROLLBACK.md",
     "docs/VERCEL_DEPLOYMENT.md",
     "docs/CLOUDFLARE_PAGES_DEPLOYMENT.md",
+    "docs/TESTING.md",
+    "configs/catalog/catalog_test.go",
+    "configs/parsers/assets_test.go",
+    "internal/confidence/confidence_test.go",
+    "internal/manager/manager_test.go",
+    "internal/registry/registry_test.go",
+    "internal/typeinfer/typeinfer_test.go",
 )
 for name in required:
     if not (root / name).is_file():

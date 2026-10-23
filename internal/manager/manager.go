@@ -33,10 +33,14 @@ func NewRegistry() *Registry {
 
 // Register adds or updates a client.
 func (r *Registry) Register(c *ClientInfo) {
-	c.LastSeen = time.Now()
-	c.Online = true
+	if c == nil {
+		return
+	}
+	stored := *c
+	stored.LastSeen = time.Now()
+	stored.Online = true
 	r.mu.Lock()
-	r.clients[c.Host] = c
+	r.clients[stored.Host] = &stored
 	r.mu.Unlock()
 }
 

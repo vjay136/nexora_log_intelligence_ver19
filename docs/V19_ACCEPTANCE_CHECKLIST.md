@@ -10,7 +10,7 @@ Updated: 2026-10-23
 | Held-out evidence separation | PASS | Lifecycle and NAPI bridge tests |
 | Approval/canary/promotion/drift/rollback | PASS | State-machine and controller API tests |
 | Existing hot path and signed rollout preserved | PASS | Complete Go suite and architecture boundary review |
-| Full Go suite | PASS | `go test ./...` |
+| Full Go suite | PASS | `go test ./...`; reusable confidence, type inference, manager, and parser-registry logic has direct unit coverage |
 | Browser suite | PASS | 42/42 Playwright Chromium |
 | Hosted deployment contracts | PASS | 20/20 Node contracts; Vite build |
 | Fuzz target | PASS | 110,438 executions / 3 seconds |

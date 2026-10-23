@@ -151,7 +151,9 @@ test('one canonical synchronization snapshot feeds Command Center, NHLE, NAPI an
   await expect(page.getByTestId('live-dashboard-kpis')).toContainText('120');
   await expect(page.locator('.chart-legend').first()).toContainText('Input (records)');
   const firstPoint=page.locator('[data-chart-category="Input"]').first();
-  if(await firstPoint.count()){await firstPoint.dispatchEvent('pointerover');await expect(page.locator('.chart-hover-readout').first()).toContainText(/Input .* records/);}
+  await expect(firstPoint).toBeVisible();
+  await firstPoint.focus();
+  await expect(page.locator('.chart-hover-readout').first()).toContainText(/Input .* records/);
 
   await page.getByTestId('nav-sync-fabric').click();
   await expect(page.getByRole('heading',{name:'Unified Real-Time Synchronization Fabric'})).toBeVisible();
@@ -761,7 +763,7 @@ test('live recovery avoids dashboard fan-out and leaves Assurance inputs and res
   const canonicalSnapshots = observed.filter(item => item === 'GET /api/v1/sync/snapshot').length;
   await page.clock.fastForward(31_000);
   expect(observed.filter(item => item === 'GET /api/v1/dashboard/snapshot')).toHaveLength(0);
-  expect(observed.filter(item => item === 'GET /api/v1/sync/snapshot').length).toBeGreaterThan(canonicalSnapshots);
+  await expect.poll(() => observed.filter(item => item === 'GET /api/v1/sync/snapshot').length).toBeGreaterThan(canonicalSnapshots);
   await page.getByTestId('nav-assurance').click();
   await page.getByTestId('assurance-raw').fill('message=keep-me');
   await page.getByRole('button', { name: 'Run assurance', exact: true }).click();

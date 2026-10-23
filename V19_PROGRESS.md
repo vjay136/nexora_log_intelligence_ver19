@@ -18,6 +18,11 @@ measured results and does not claim universal log accuracy.
   evidence to the stricter NUPIRE lifecycle without retaining raw samples.
 - Authenticated controller APIs and a real NUPIRE/EGPE operator workspace.
 - Ver19 complete Go suite: PASS.
+- Direct unit coverage for confidence routing, type inference, client-manager
+  snapshots/API behavior, and declarative parser registry validation,
+  application, persistence, and built-in identity: PASS. Intentional
+  `[no test files]` entrypoint and embedded-asset packages are documented in
+  `docs/TESTING.md` and remain covered by integration and release gates.
 - NUPIRE focused tests: PASS.
 - Tokenizer fuzz test: PASS, 110,438 executions in three seconds.
 - Browser UI suite: PASS, 42/42.

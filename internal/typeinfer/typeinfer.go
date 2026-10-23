@@ -11,7 +11,7 @@ import (
 
 var (
 	reBool      = regexp.MustCompile(`(?i)^(?:true|false|yes|no|on|off)$`)
-	reTimestamp = regexp.MustCompile(`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}`)
+	reTimestamp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$`)
 	reEmail     = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 	reURL       = regexp.MustCompile(`^https?://`)
 )

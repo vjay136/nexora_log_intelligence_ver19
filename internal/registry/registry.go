@@ -57,9 +57,13 @@ func New() *Registry {
 
 // Register adds or replaces a parser definition.
 func (r *Registry) Register(p *ParserDef) {
+	if p == nil {
+		return
+	}
+	stored := cloneParserDef(p)
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.parsers[p.ID] = p
+	r.parsers[stored.ID] = stored
 }
 
 // Get returns a parser by ID.
@@ -67,7 +71,10 @@ func (r *Registry) Get(id string) (*ParserDef, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	p, ok := r.parsers[id]
-	return p, ok
+	if !ok {
+		return nil, false
+	}
+	return cloneParserDef(p), true
 }
 
 // All returns a copy of all parsers.
@@ -76,9 +83,48 @@ func (r *Registry) All() []*ParserDef {
 	defer r.mu.RUnlock()
 	out := make([]*ParserDef, 0, len(r.parsers))
 	for _, p := range r.parsers {
-		out = append(out, p)
+		out = append(out, cloneParserDef(p))
 	}
 	return out
+}
+
+func cloneParserDef(p *ParserDef) *ParserDef {
+	if p == nil {
+		return nil
+	}
+	clone := *p
+	clone.TemplateIDs = append([]string(nil), p.TemplateIDs...)
+	clone.Fields = append([]FieldDef(nil), p.Fields...)
+	clone.Tests = make([]RegressionTest, len(p.Tests))
+	for i, test := range p.Tests {
+		clone.Tests[i] = RegressionTest{Input: test.Input}
+		if test.Expected != nil {
+			clone.Tests[i].Expected = make(map[string]interface{}, len(test.Expected))
+			for key, value := range test.Expected {
+				clone.Tests[i].Expected[key] = cloneJSONValue(value)
+			}
+		}
+	}
+	return &clone
+}
+
+func cloneJSONValue(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		clone := make(map[string]interface{}, len(typed))
+		for key, item := range typed {
+			clone[key] = cloneJSONValue(item)
+		}
+		return clone
+	case []interface{}:
+		clone := make([]interface{}, len(typed))
+		for i, item := range typed {
+			clone[i] = cloneJSONValue(item)
+		}
+		return clone
+	default:
+		return value
+	}
 }
 
 // LoadDir loads all *.json parser files from a directory.
