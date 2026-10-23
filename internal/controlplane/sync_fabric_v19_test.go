@@ -174,14 +174,17 @@ func TestCanonicalSyncAPIInitialSnapshotAndVersionedIngest(t *testing.T) {
 		Aggregate     telemetry.SyncAggregate    `json:"aggregate"`
 		Subsystems    map[string]json.RawMessage `json:"subsystems"`
 		Controller    struct {
-			Health  string `json:"health"`
-			Version string `json:"version"`
+			Health             string  `json:"health"`
+			Version            string  `json:"version"`
+			UptimeSeconds      float64 `json:"uptime_seconds"`
+			ProcessMemoryBytes uint64  `json:"process_memory_alloc_bytes"`
+			CPUStatus          string  `json:"cpu_percent_status"`
 		} `json:"controller"`
 	}
-	if json.Unmarshal(data, &snapshot) != nil || snapshot.SchemaVersion != telemetry.SyncSchemaVersion || snapshot.Aggregate.SourceRecordsReadTotal != 4 || len(snapshot.Subsystems) != 4 || snapshot.Controller.Health != "ok" || snapshot.Controller.Version == "" {
+	if json.Unmarshal(data, &snapshot) != nil || snapshot.SchemaVersion != telemetry.SyncSchemaVersion || snapshot.Aggregate.SourceRecordsReadTotal != 4 || len(snapshot.Subsystems) != 7 || snapshot.Controller.Health != "ok" || snapshot.Controller.Version == "" || snapshot.Controller.UptimeSeconds < 0 || snapshot.Controller.CPUStatus != telemetry.FreshnessNotInstrumented {
 		t.Fatalf("canonical snapshot mismatch: %s", data)
 	}
-	for _, name := range []string{"nhle", "napi", "nal", "nursf"} {
+	for _, name := range []string{"nhle", "napi", "nal", "nursf", "delivery", "replay", "release_readiness"} {
 		var subsystem map[string]any
 		if err := json.Unmarshal(snapshot.Subsystems[name], &subsystem); err != nil {
 			t.Fatalf("decode %s subsystem: %v", name, err)
@@ -189,6 +192,10 @@ func TestCanonicalSyncAPIInitialSnapshotAndVersionedIngest(t *testing.T) {
 		if subsystem["status"] == nil || subsystem["updated_at"] == nil {
 			t.Fatalf("%s subsystem lacks status or fresh timestamp: %s", name, snapshot.Subsystems[name])
 		}
+	}
+	var nhle map[string]any
+	if err := json.Unmarshal(snapshot.Subsystems["nhle"], &nhle); err != nil || nhle["active_nodes"] != float64(1) || nhle["source_count"] != float64(1) {
+		t.Fatalf("NHLE active node/source counts missing: %s", snapshot.Subsystems["nhle"])
 	}
 	unauthorized, err := http.Get(f.http.URL + "/api/v1/sync/snapshot")
 	if err != nil {

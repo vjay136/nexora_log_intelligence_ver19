@@ -31,6 +31,7 @@ import (
 	"nexora.local/nli-v19/internal/middleware"
 	"nexora.local/nli-v19/internal/protocol"
 	metastore "nexora.local/nli-v19/internal/store"
+	"nexora.local/nli-v19/telemetry"
 )
 
 var semverPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$`)
@@ -1626,7 +1627,13 @@ func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 	var memory runtime.MemStats
 	runtime.ReadMemStats(&memory)
 	hostname, _ := os.Hostname()
-	jsonOK(w, map[string]any{"version": "19.0.0", "health": "ok", "infrastructure": map[string]any{"hostname": hostname, "os": runtime.GOOS, "arch": runtime.GOARCH, "cpu_count": runtime.NumCPU(), "goroutines": runtime.NumGoroutine(), "memory_bytes": memory.Alloc, "edge": s.edgeInfrastructure()}, "storage": map[string]any{"mode": s.metadata.Mode(), "status": storageStatus, "error": storageError, "diagnostic": storageDiagnostic(storageError), "warning": s.storageWarning, "credentials_exposed": false}, "artifact_storage": map[string]any{"mode": artifactStorageMode, "ready": artifactStorageReady, "buckets": []string{"nli-assurance-fixtures", "nli-rollout-artifacts", "nli-geoip-databases"}, "private": true}, "retention": map[string]any{"normal_raw": false, "normal_json": false, "assurance_enabled": s.assurance.enabled, "assurance_max": s.assurance.max, "assurance_ttl_hours": int(s.assurance.ttl.Hours()), "quarantine_metadata_mode": "local", "quarantine_metadata_status": quarantineStoreStatus, "quarantine_raw_enabled": s.quarantine != nil && s.quarantine.enabled, "quarantine_raw_max_records": s.cfg.QuarantineRawRetentionMaxRecords, "quarantine_raw_ttl_hours": s.cfg.QuarantineRawRetentionHours, "encrypted": s.assurance.enabled || (s.quarantine != nil && s.quarantine.enabled)}, "security": map[string]any{"roles": auth.Roles(), "audit_chain": auditStatus, "artifact_signing_keys": len(s.artifactKeys), "csrf": true, "strict_content_types": true}, "fleet": s.fleet.Stats()})
+	health := "ok"
+	if storageStatus != "ok" || auditStatus != "ok" || quarantineStoreStatus != "ok" { health = "degraded" }
+	startedAt := s.startedAt
+	if startedAt.IsZero() { startedAt = time.Now().UTC() }
+	infrastructure := map[string]any{"hostname": hostname, "os": runtime.GOOS, "arch": runtime.GOARCH, "cpu_count": runtime.NumCPU(), "cpu_percent": nil, "cpu_percent_status": telemetry.FreshnessNotInstrumented, "goroutines": runtime.NumGoroutine(), "memory_bytes": memory.Alloc, "memory_sys_bytes": memory.Sys, "started_at": startedAt, "uptime_seconds": time.Since(startedAt).Seconds(), "restart_count": nil, "restart_count_status": telemetry.FreshnessNotInstrumented, "disk_usage_bytes": nil, "disk_usage_status": telemetry.FreshnessNotInstrumented, "network_bytes": nil, "network_status": telemetry.FreshnessNotInstrumented, "edge": s.edgeInfrastructure()}
+	if descriptors, err := os.ReadDir("/proc/self/fd"); err == nil { infrastructure["open_file_descriptors"] = len(descriptors); infrastructure["open_file_descriptors_status"] = "available" } else { infrastructure["open_file_descriptors_status"] = "unavailable" }
+	jsonOK(w, map[string]any{"version": "19.0.0", "health": health, "infrastructure": infrastructure, "storage": map[string]any{"mode": s.metadata.Mode(), "status": storageStatus, "error": storageError, "diagnostic": storageDiagnostic(storageError), "warning": s.storageWarning, "credentials_exposed": false}, "artifact_storage": map[string]any{"mode": artifactStorageMode, "ready": artifactStorageReady, "buckets": []string{"nli-assurance-fixtures", "nli-rollout-artifacts", "nli-geoip-databases"}, "private": true}, "retention": map[string]any{"normal_raw": false, "normal_json": false, "assurance_enabled": s.assurance.enabled, "assurance_max": s.assurance.max, "assurance_ttl_hours": int(s.assurance.ttl.Hours()), "quarantine_metadata_mode": "local", "quarantine_metadata_status": quarantineStoreStatus, "quarantine_raw_enabled": s.quarantine != nil && s.quarantine.enabled, "quarantine_raw_max_records": s.cfg.QuarantineRawRetentionMaxRecords, "quarantine_raw_ttl_hours": s.cfg.QuarantineRawRetentionHours, "encrypted": s.assurance.enabled || (s.quarantine != nil && s.quarantine.enabled)}, "security": map[string]any{"roles": auth.Roles(), "audit_chain": auditStatus, "artifact_signing_keys": len(s.artifactKeys), "csrf": true, "strict_content_types": true}, "fleet": s.fleet.Stats()})
 }
 
 func (s *Server) edgeInfrastructure() map[string]any {

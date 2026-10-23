@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"runtime"
 	"time"
 
 	"nexora.local/nli-v19/internal/engine"
@@ -24,6 +26,42 @@ func (s *Server) canonicalSyncSnapshot(parent context.Context) map[string]any {
 	snapshot := s.streamTelemetry.CanonicalSnapshot()
 	ctx, cancel := context.WithTimeout(parent, 1500*time.Millisecond)
 	defer cancel()
+	storageStatus := "ok"
+	storageError := ""
+	if err := s.metadata.Health(ctx); err != nil {
+		storageStatus, storageError = "degraded", storageDiagnostic(err.Error())
+	}
+	var memory runtime.MemStats
+	runtime.ReadMemStats(&memory)
+	startedAt := s.startedAt
+	if startedAt.IsZero() {
+		startedAt = snapshot.GeneratedAt
+	}
+	uptime := snapshot.GeneratedAt.Sub(startedAt).Seconds()
+	if uptime < 0 {
+		uptime = 0
+	}
+	controllerHealth := "ok"
+	if storageStatus != "ok" {
+		controllerHealth = "degraded"
+	}
+	auditStatus := "ok"
+	if err := s.audit.Verify(); err != nil {
+		auditStatus = "tampered"
+		controllerHealth = "degraded"
+	}
+	quarantineStatus := "ok"
+	if s.quarantine == nil || s.quarantine.store == nil || s.quarantine.store.Health(ctx) != nil {
+		quarantineStatus = "degraded"
+		controllerHealth = "degraded"
+	}
+	controller := map[string]any{"health": controllerHealth, "version": engine.Version, "started_at": startedAt, "uptime_seconds": uptime, "process_memory_alloc_bytes": memory.Alloc, "process_memory_sys_bytes": memory.Sys, "goroutines": runtime.NumGoroutine(), "cpu_count": runtime.NumCPU(), "cpu_percent": nil, "cpu_percent_status": telemetry.FreshnessNotInstrumented, "restart_count": nil, "restart_count_status": telemetry.FreshnessNotInstrumented, "disk_usage_bytes": nil, "disk_usage_status": telemetry.FreshnessNotInstrumented, "network_bytes": nil, "network_status": telemetry.FreshnessNotInstrumented}
+	if descriptors, err := os.ReadDir("/proc/self/fd"); err == nil {
+		controller["open_file_descriptors"] = len(descriptors)
+		controller["open_file_descriptors_status"] = "available"
+	} else {
+		controller["open_file_descriptors_status"] = "unavailable"
+	}
 	return map[string]any{
 		"schema_version":     snapshot.SchemaVersion,
 		"revision":           snapshot.Revision,
@@ -33,7 +71,8 @@ func (s *Server) canonicalSyncSnapshot(parent context.Context) map[string]any {
 		"sources":            snapshot.Sources,
 		"diagnostics":        snapshot.Diagnostics,
 		"subsystems":         s.subsystemSyncSnapshot(ctx, snapshot),
-		"controller":         map[string]any{"health": "ok", "version": engine.Version},
+		"controller":         controller,
+		"storage":            map[string]any{"status": storageStatus, "diagnostic": storageError, "quarantine_status": quarantineStatus, "audit_chain": auditStatus},
 	}
 }
 
@@ -127,7 +166,93 @@ func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.S
 		nursfState = "live"
 	}
 	nursf := map[string]any{"status": "ready", "state": nursfState, "updated_at": snapshot.GeneratedAt, "revision": snapshot.Revision, "target_interval_ms": snapshot.TargetIntervalMS, "tracked_nodes": snapshot.Diagnostics.TrackedNodes, "tracked_sources": snapshot.Diagnostics.TrackedSources, "accepted_batches": snapshot.Diagnostics.AcceptedBatches}
-	return map[string]any{"nhle": nhle, "napi": napi, "nal": nal, "nursf": nursf}
+	storeStats := s.events.Stats()
+	delivery := map[string]any{"status": "ready", "updated_at": snapshot.GeneratedAt, "acknowledgements_by_destination": storeStats["delivery_acks"], "retry_count": nil, "backlog": nil, "latency_ms": nil, "retry_backlog_latency_status": telemetry.FreshnessNotInstrumented}
+	replay := s.replayQueueSnapshot(ctx, snapshot.GeneratedAt)
+	release := s.releaseReadinessSnapshot(ctx, snapshot.GeneratedAt)
+	return map[string]any{"nhle": nhle, "napi": napi, "nal": nal, "nursf": nursf, "delivery": delivery, "replay": replay, "release_readiness": release}
+}
+
+func (s *Server) replayQueueSnapshot(ctx context.Context, now time.Time) map[string]any {
+	result := map[string]any{"status": "ready", "updated_at": now, "queued": 0, "reprocessing": 0, "resolved": 0, "oldest_queued_age_seconds": nil, "attempts_total": 0}
+	if s.quarantine == nil || s.quarantine.store == nil {
+		result["status"], result["state"] = telemetry.FreshnessUnavailable, "unavailable"
+		return result
+	}
+	docs, err := s.quarantine.store.List(ctx, quarantineRecordsCollection, metastore.Query{Limit: 1000})
+	if err != nil {
+		result["status"], result["state"], result["reason"] = telemetry.FreshnessCollectionFailed, "unavailable", "quarantine queue collection failed"
+		return result
+	}
+	oldestAge := time.Duration(0)
+	var latestAttempt time.Time
+	for _, doc := range docs {
+		var record quarantineRecord
+		if json.Unmarshal(doc.Payload, &record) != nil {
+			continue
+		}
+		switch record.Status {
+		case "waiting", "replay_failed":
+			result["queued"] = result["queued"].(int) + 1
+			age := now.Sub(record.FirstSeen)
+			if age < 0 {
+				age = 0
+			}
+			if age > oldestAge {
+				oldestAge = age
+			}
+		case "reprocessing":
+			result["reprocessing"] = result["reprocessing"].(int) + 1
+		case "resolved":
+			result["resolved"] = result["resolved"].(int) + 1
+		}
+		result["attempts_total"] = result["attempts_total"].(int) + record.AttemptCount
+		if record.LastAttempt.After(latestAttempt) {
+			latestAttempt = record.LastAttempt
+		}
+	}
+	if result["queued"].(int) > 0 {
+		result["oldest_queued_age_seconds"] = oldestAge.Seconds()
+		result["state"] = "queued"
+	} else {
+		result["oldest_queued_age_seconds"] = nil
+		result["state"] = "idle"
+	}
+	if !latestAttempt.IsZero() {
+		result["latest_attempt_at"] = latestAttempt
+	}
+	return result
+}
+
+func (s *Server) releaseReadinessSnapshot(ctx context.Context, now time.Time) map[string]any {
+	result := map[string]any{"status": "ready", "updated_at": now, "managed_nodes": 0, "release_drifted_nodes": 0, "evidence": "persisted desired and reported active release hashes"}
+	docs, err := s.metadata.List(ctx, "fleet-sync", metastore.Query{Limit: 1000})
+	if err != nil {
+		result["status"], result["state"], result["reason"] = telemetry.FreshnessCollectionFailed, "unavailable", "fleet release evidence collection failed"
+		return result
+	}
+	managed, drifted := 0, 0
+	for _, doc := range docs {
+		var state map[string]any
+		if json.Unmarshal(doc.Payload, &state) != nil {
+			continue
+		}
+		desired, _ := state["desired_release_hash"].(string)
+		if desired == "" { continue }
+		managed++
+		active, _ := state["active_release_hash"].(string)
+		if active != desired { drifted++ }
+	}
+	result["managed_nodes"], result["release_drifted_nodes"] = managed, drifted
+	result["status"], result["state"] = "idle", "no_release_targets"
+	if managed > 0 {
+		result["status"], result["state"] = "ready", "ready"
+		if drifted > 0 {
+			result["state"] = "drifted"
+			result["status"] = "degraded"
+		}
+	}
+	return result
 }
 
 func subsystemFreshness(sources []telemetry.StreamFileTelemetry, now time.Time) (string, any) {

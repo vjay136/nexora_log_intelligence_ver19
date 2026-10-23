@@ -484,7 +484,11 @@ func (tc *TelemetryController) Store(record *telemetry.ParseTelemetry) (eventsto
 	if record.ProcessedAt.IsZero() {
 		record.ProcessedAt = time.Now().UTC()
 	}
-	return tc.store.Append(record.NodeID, eventstore.TelemetryMetadata{EventID: record.EventID, EventHash: record.EventHash, Service: "telemetry", ParserID: record.ParserID, RuleID: record.RuleID, Route: record.Route, Confidence: record.Confidence, EvidenceCoverage: record.EvidenceCoverage, AttemptCount: record.AttemptCount, FallbackDepth: record.FallbackDepth, FieldCount: record.OutputFieldCount, LatencyMs: record.LatencyMs, Result: record.Result, ErrorCodes: record.ErrorCodes, Timestamp: record.ProcessedAt})
+	acks := make([]eventstore.DeliveryAck, 0, len(record.DeliveryAcks))
+	for _, ack := range record.DeliveryAcks {
+		acks = append(acks, eventstore.DeliveryAck{Destination: ack.Destination, Status: ack.Status, ErrorCode: ack.ErrorCode, Timestamp: ack.Timestamp})
+	}
+	return tc.store.Append(record.NodeID, eventstore.TelemetryMetadata{EventID: record.EventID, EventHash: record.EventHash, Service: "telemetry", ParserID: record.ParserID, RuleID: record.RuleID, Route: record.Route, Confidence: record.Confidence, EvidenceCoverage: record.EvidenceCoverage, AttemptCount: record.AttemptCount, FallbackDepth: record.FallbackDepth, FieldCount: record.OutputFieldCount, LatencyMs: record.LatencyMs, Result: record.Result, ErrorCodes: record.ErrorCodes, DeliveryAcks: acks, Timestamp: record.ProcessedAt})
 }
 
 func (tc *TelemetryController) GetTelemetry(w http.ResponseWriter, r *http.Request) {

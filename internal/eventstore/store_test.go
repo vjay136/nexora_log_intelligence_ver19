@@ -35,3 +35,18 @@ func TestMetadataOnlyStoreCompactsDisk(t *testing.T) {
 		}
 	}
 }
+
+func TestDeliveryAcknowledgementsAreRetainedAsBoundedMetadata(t *testing.T) {
+	store, err := New(filepath.Join(t.TempDir(), "events.jsonl"), 10)
+	if err != nil { t.Fatal(err) }
+	_, err = store.Append("node-1", TelemetryMetadata{ParserID: "mail", Route: "normal", Result: "success", DeliveryAcks: []DeliveryAck{{Destination: "customer", Status: "queued"}, {Destination: "customer", Status: "failed", ErrorCode: "write_failed"}}})
+	if err != nil { t.Fatal(err) }
+	stats := store.Stats()
+	destinations, ok := stats["delivery_acks"].(map[string]map[string]int)
+	if !ok || destinations["customer"]["queued"] != 1 || destinations["customer"]["failed"] != 1 {
+		t.Fatalf("destination acknowledgement counts missing: %#v", stats["delivery_acks"])
+	}
+	if got := len(store.Query(Query{Limit: 10})[0].DeliveryAcks); got != 2 {
+		t.Fatalf("stored acknowledgements=%d, want 2", got)
+	}
+}

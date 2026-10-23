@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	metastore "nexora.local/nli-v19/internal/store"
+	"nexora.local/nli-v19/telemetry"
 	"time"
 )
 
@@ -27,6 +29,27 @@ func enableTestQuarantineRetention(t *testing.T, f *apiFixture) {
 	}
 	f.server.quarantine.enabled = true
 	f.server.quarantine.aead = aead
+}
+
+func TestCanonicalReplayAndReleaseReadinessUsePersistedEvidence(t *testing.T) {
+	f := newAPIFixture(t)
+	firstSeen := time.Now().UTC().Add(-75 * time.Second)
+	if err := f.server.storeQuarantineRecord(context.Background(), quarantineRecordInput{ID: "q-metric", NodeID: "node-1", Status: "waiting", FirstSeen: firstSeen, AttemptCount: 2}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.server.metadata.Put(context.Background(), metastore.Document{Collection: "fleet-sync", ID: safeID("node-1"), Payload: []byte(`{"desired_release_hash":"release-b","active_release_hash":"release-a"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := telemetry.SyncSnapshot{GeneratedAt: time.Now().UTC()}
+	subsystems := f.server.subsystemSyncSnapshot(context.Background(), snapshot)
+	replay := subsystems["replay"].(map[string]any)
+	if replay["queued"] != 1 || replay["attempts_total"] != 2 || replay["state"] != "queued" || replay["oldest_queued_age_seconds"].(float64) < 70 {
+		t.Fatalf("replay metrics not derived from queue record: %#v", replay)
+	}
+	release := subsystems["release_readiness"].(map[string]any)
+	if release["managed_nodes"] != 1 || release["release_drifted_nodes"] != 1 || release["state"] != "drifted" || release["status"] != "degraded" {
+		t.Fatalf("release drift evidence not reflected: %#v", release)
+	}
 }
 
 func TestQuarantineRawIsEncryptedInDedicatedLocalStoreAndDownloadAudited(t *testing.T) {

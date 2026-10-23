@@ -35,6 +35,14 @@ type Record struct {
 	LatencyMs        int64     `json:"latency_ms,omitempty"`
 	Result           string    `json:"result,omitempty"`
 	ErrorCodes       []string  `json:"error_codes,omitempty"`
+	DeliveryAcks     []DeliveryAck `json:"delivery_acks,omitempty"`
+}
+
+type DeliveryAck struct {
+	Destination string    `json:"destination"`
+	Status      string    `json:"status"`
+	ErrorCode   string    `json:"error_code,omitempty"`
+	Timestamp   time.Time `json:"timestamp,omitempty"`
 }
 
 type Query struct {
@@ -62,6 +70,7 @@ type TelemetryMetadata struct {
 	LatencyMs        int64
 	Result           string
 	ErrorCodes       []string
+	DeliveryAcks     []DeliveryAck
 	Timestamp        time.Time
 }
 
@@ -138,6 +147,16 @@ func (s *Store) Append(nodeID string, metadata TelemetryMetadata) (Record, error
 		if code = bounded(code, 64); code != "" {
 			record.ErrorCodes = append(record.ErrorCodes, code)
 		}
+	}
+	for _, ack := range metadata.DeliveryAcks {
+		if len(record.DeliveryAcks) == 32 {
+			break
+		}
+		destination, status := bounded(ack.Destination, 64), bounded(ack.Status, 32)
+		if destination == "" || status == "" {
+			continue
+		}
+		record.DeliveryAcks = append(record.DeliveryAcks, DeliveryAck{Destination: destination, Status: status, ErrorCode: bounded(ack.ErrorCode, 64), Timestamp: ack.Timestamp})
 	}
 	encoded, err := json.Marshal(record)
 	if err != nil || len(encoded) > maxRecordLine {
@@ -261,6 +280,7 @@ func (s *Store) Stats() map[string]interface{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	routes, services, parsers, results := map[string]int{}, map[string]int{}, map[string]int{}, map[string]int{}
+	deliveries := map[string]map[string]int{}
 	cutoff, lastHour, attempts, fallbacks := time.Now().Add(-time.Hour), 0, 0, 0
 	for _, record := range s.records {
 		routes[record.Route]++
@@ -269,6 +289,12 @@ func (s *Store) Stats() map[string]interface{} {
 		results[record.Result]++
 		attempts += record.AttemptCount
 		fallbacks += record.FallbackDepth
+		for _, ack := range record.DeliveryAcks {
+			if deliveries[ack.Destination] == nil {
+				deliveries[ack.Destination] = map[string]int{}
+			}
+			deliveries[ack.Destination][ack.Status]++
+		}
 		if record.ReceivedAt.After(cutoff) {
 			lastHour++
 		}
@@ -276,7 +302,7 @@ func (s *Store) Stats() map[string]interface{} {
 	return map[string]interface{}{
 		"retained_metadata": len(s.records), "retained_events": len(s.records), "max_records": s.max,
 		"events_last_hour": lastHour, "routes": routes, "services": services, "parsers": parsers,
-		"results": results, "parser_attempts": attempts, "fallback_depth_total": fallbacks,
+		"results": results, "parser_attempts": attempts, "fallback_depth_total": fallbacks, "delivery_acks": deliveries,
 	}
 }
 
