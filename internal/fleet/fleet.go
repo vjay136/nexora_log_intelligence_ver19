@@ -63,7 +63,8 @@ type NodeMetrics struct {
 	Load1          float64   `json:"load_1m,omitempty"`
 	Load5          float64   `json:"load_5m,omitempty"`
 	Load15         float64   `json:"load_15m,omitempty"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	HostMetricsAvailable bool      `json:"host_metrics_available"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 // Fleet is the node registry.

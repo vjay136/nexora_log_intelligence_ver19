@@ -173,6 +173,33 @@ func TestSendStreamTelemetryPublishesFreshFullSnapshotsIncludingEmpty(t *testing
 	}
 }
 
+func TestReadMetricsKeepsUnavailableHostMetricsDistinctFromZero(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	got := readMetrics(server.URL)
+	if got.HostMetricsAvailable || got.CPUPercent != 0 || got.MemoryBytes != 0 || got.ParseRate != 0 {
+		t.Fatalf("failed metrics endpoint must not fabricate host readings: %+v", got)
+	}
+}
+
+func TestReadHostMetricsAvailabilityMatchesPlatform(t *testing.T) {
+	metrics, available := readHostMetrics()
+	if runtime.GOOS != "linux" {
+		if available {
+			t.Fatalf("host metrics unexpectedly available on %s: %+v", runtime.GOOS, metrics)
+		}
+		return
+	}
+	if !available {
+		t.Fatal("Linux /proc metrics should be available")
+	}
+	if metrics.cpu < 0 || metrics.cpu > 100 || metrics.memoryPercent < 0 || metrics.memoryPercent > 100 || metrics.usedBytes == 0 || metrics.load1 < 0 || metrics.load5 < 0 || metrics.load15 < 0 {
+		t.Fatalf("invalid Linux host metrics: %+v", metrics)
+	}
+}
+
 func TestClientConfigValidationActivationAndRestart(t *testing.T) {
 	root := t.TempDir()
 	configPath := filepath.Join(root, "nli.json")

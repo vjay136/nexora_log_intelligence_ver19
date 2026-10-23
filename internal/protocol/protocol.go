@@ -41,6 +41,7 @@ type Metrics struct {
 	Load1          float64 `json:"load_1m,omitempty"`
 	Load5          float64 `json:"load_5m,omitempty"`
 	Load15         float64 `json:"load_15m,omitempty"`
+	HostMetricsAvailable bool `json:"host_metrics_available"`
 }
 
 type HeartbeatRequest struct {

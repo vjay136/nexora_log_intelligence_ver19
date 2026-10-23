@@ -764,7 +764,7 @@ func (s *Server) handleNodeHeartbeat(w http.ResponseWriter, r *http.Request) {
 		sample.NodeID = request.NodeID
 		s.streamTelemetry.Publish(*sample)
 	}
-	metrics := &fleet.NodeMetrics{Received: request.Metrics.Received, Parsed: request.Metrics.Parsed, Quarantined: request.Metrics.Quarantined, Errors: request.Metrics.Errors, ParseRate: request.Metrics.ParseRate, ParseLatencyMs: request.Metrics.ParseLatencyMs, CPUPercent: request.Metrics.CPUPercent, MemoryBytes: request.Metrics.MemoryBytes, MemoryPercent: request.Metrics.MemoryPercent, Load1: request.Metrics.Load1, Load5: request.Metrics.Load5, Load15: request.Metrics.Load15}
+	metrics := &fleet.NodeMetrics{Received: request.Metrics.Received, Parsed: request.Metrics.Parsed, Quarantined: request.Metrics.Quarantined, Errors: request.Metrics.Errors, ParseRate: request.Metrics.ParseRate, ParseLatencyMs: request.Metrics.ParseLatencyMs, CPUPercent: request.Metrics.CPUPercent, MemoryBytes: request.Metrics.MemoryBytes, MemoryPercent: request.Metrics.MemoryPercent, Load1: request.Metrics.Load1, Load5: request.Metrics.Load5, Load15: request.Metrics.Load15, HostMetricsAvailable: request.Metrics.HostMetricsAvailable}
 	if err := s.fleet.UpdateHeartbeat(request.NodeID, request.Version, request.ConfigHash, request.Health, request.Issues, parsers, metrics); err != nil {
 		jsonError(w, err.Error(), http.StatusNotFound)
 		return

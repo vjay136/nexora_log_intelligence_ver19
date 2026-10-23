@@ -222,16 +222,12 @@ func (s *Server) handleMetricsTimeSeries(w http.ResponseWriter, r *http.Request)
 	var cpuCount, memoryCount, loadCount int
 	for _, node := range active {
 		metric := node.Metrics
-		clientMetrics = append(clientMetrics, map[string]any{"node_id": node.ID, "hostname": node.Hostname, "updated_at": metric.UpdatedAt, "cpu_percent": metric.CPUPercent, "memory_bytes": metric.MemoryBytes, "memory_percent": metric.MemoryPercent, "load_1m": metric.Load1, "load_5m": metric.Load5, "load_15m": metric.Load15, "parse_latency_ms": metric.ParseLatencyMs})
-		if metric.CPUPercent > 0 {
+		clientMetrics = append(clientMetrics, map[string]any{"node_id": node.ID, "hostname": node.Hostname, "updated_at": metric.UpdatedAt, "cpu_percent": metric.CPUPercent, "memory_bytes": metric.MemoryBytes, "memory_percent": metric.MemoryPercent, "load_1m": metric.Load1, "load_5m": metric.Load5, "load_15m": metric.Load15, "host_metrics_available": metric.HostMetricsAvailable, "parse_latency_ms": metric.ParseLatencyMs})
+		if metric.HostMetricsAvailable {
 			cpuSum += metric.CPUPercent
 			cpuCount++
-		}
-		if metric.MemoryPercent > 0 {
 			memorySum += metric.MemoryPercent
 			memoryCount++
-		}
-		if metric.Load1 > 0 {
 			loadSum += metric.Load1
 			loadCount++
 		}

@@ -971,6 +971,9 @@ func readMetrics(endpoint string) protocol.Metrics {
 		return protocol.Metrics{}
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return protocol.Metrics{}
+	}
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	metrics := protocol.Metrics{}
 	for _, line := range strings.Split(string(data), "\n") {
@@ -993,7 +996,80 @@ func readMetrics(endpoint string) protocol.Metrics {
 	if metrics.Received > 0 {
 		metrics.ParseRate = float64(metrics.Parsed) / float64(metrics.Received) * 100
 	}
+	if host, ok := readHostMetrics(); ok {
+		metrics.CPUPercent = host.cpu
+		metrics.MemoryBytes = host.usedBytes
+		metrics.MemoryPercent = host.memoryPercent
+		metrics.Load1, metrics.Load5, metrics.Load15 = host.load1, host.load5, host.load15
+		metrics.HostMetricsAvailable = true
+	}
 	return metrics
+}
+
+type hostMetrics struct {
+	cpu, memoryPercent, load1, load5, load15 float64
+	usedBytes                                 uint64
+}
+
+var hostCPUState struct {
+	sync.Mutex
+	total, idle uint64
+	at          time.Time
+}
+
+// readHostMetrics reports Linux host values only when all required kernel
+// counters are readable. The first CPU sample is a real zero baseline; later
+// samples use deltas from /proc/stat. Other platforms remain explicitly
+// unavailable instead of presenting fabricated zeros.
+func readHostMetrics() (hostMetrics, bool) {
+	if runtime.GOOS != "linux" {
+		return hostMetrics{}, false
+	}
+	stat, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return hostMetrics{}, false
+	}
+	var label string; var user, nice, system, idle, iowait, irq, softirq, steal uint64
+	if _, err := fmt.Sscanf(strings.SplitN(string(stat), "\n", 2)[0], "%s %d %d %d %d %d %d %d %d", &label, &user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal); err != nil {
+		return hostMetrics{}, false
+	}
+	total := user + nice + system + idle + iowait + irq + softirq + steal
+	idleTotal := idle + iowait
+	hostCPUState.Lock()
+	cpu := 0.0
+	if hostCPUState.at.IsZero() {
+		hostCPUState.total, hostCPUState.idle = total, idleTotal
+	} else if total > hostCPUState.total && idleTotal >= hostCPUState.idle {
+		delta, idleDelta := total-hostCPUState.total, idleTotal-hostCPUState.idle
+		if delta > 0 {
+			cpu = 100 * float64(delta-idleDelta) / float64(delta)
+		}
+	}
+	hostCPUState.total, hostCPUState.idle, hostCPUState.at = total, idleTotal, time.Now()
+	hostCPUState.Unlock()
+	mem, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return hostMetrics{}, false
+	}
+	var totalKB, availableKB uint64
+	for _, line := range strings.Split(string(mem), "\n") {
+		if strings.HasPrefix(line, "MemTotal:") { _, _ = fmt.Sscanf(line, "MemTotal: %d kB", &totalKB) }
+		if strings.HasPrefix(line, "MemAvailable:") { _, _ = fmt.Sscanf(line, "MemAvailable: %d kB", &availableKB) }
+	}
+	if totalKB == 0 || availableKB > totalKB {
+		return hostMetrics{}, false
+	}
+	loadData, err := os.ReadFile("/proc/loadavg")
+	if err != nil {
+		return hostMetrics{}, false
+	}
+	var out hostMetrics
+	if _, err := fmt.Sscanf(string(loadData), "%f %f %f", &out.load1, &out.load5, &out.load15); err != nil {
+		return hostMetrics{}, false
+	}
+	out.cpu, out.usedBytes = cpu, (totalKB-availableKB)*1024
+	out.memoryPercent = 100 * float64(totalKB-availableKB) / float64(totalKB)
+	return out, true
 }
 
 func parserInventory(dir string) []protocol.ParserInventory {
