@@ -51,20 +51,20 @@ type ParserStatus struct {
 
 // NodeMetrics holds the latest counters from a node.
 type NodeMetrics struct {
-	Received       uint64    `json:"logs_received"`
-	Parsed         uint64    `json:"logs_parsed"`
-	Quarantined    uint64    `json:"logs_quarantined"`
-	Errors         uint64    `json:"errors"`
-	ParseRate      float64   `json:"parse_rate_pct"` // parsed/received * 100
-	ParseLatencyMs float64   `json:"parse_latency_ms,omitempty"`
-	CPUPercent     float64   `json:"cpu_percent,omitempty"`
-	MemoryBytes    uint64    `json:"memory_bytes,omitempty"`
-	MemoryPercent  float64   `json:"memory_percent,omitempty"`
-	Load1          float64   `json:"load_1m,omitempty"`
-	Load5          float64   `json:"load_5m,omitempty"`
-	Load15         float64   `json:"load_15m,omitempty"`
+	Received             uint64    `json:"logs_received"`
+	Parsed               uint64    `json:"logs_parsed"`
+	Quarantined          uint64    `json:"logs_quarantined"`
+	Errors               uint64    `json:"errors"`
+	ParseRate            float64   `json:"parse_rate_pct"` // parsed/received * 100
+	ParseLatencyMs       float64   `json:"parse_latency_ms,omitempty"`
+	CPUPercent           float64   `json:"cpu_percent,omitempty"`
+	MemoryBytes          uint64    `json:"memory_bytes,omitempty"`
+	MemoryPercent        float64   `json:"memory_percent,omitempty"`
+	Load1                float64   `json:"load_1m,omitempty"`
+	Load5                float64   `json:"load_5m,omitempty"`
+	Load15               float64   `json:"load_15m,omitempty"`
 	HostMetricsAvailable bool      `json:"host_metrics_available"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // Fleet is the node registry.

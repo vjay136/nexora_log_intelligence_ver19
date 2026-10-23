@@ -62,6 +62,14 @@ func (s *Server) canonicalSyncSnapshot(parent context.Context) map[string]any {
 	} else {
 		controller["open_file_descriptors_status"] = "unavailable"
 	}
+	clientMetrics := make([]map[string]any, 0)
+	for _, node := range s.fleet.All() {
+		if node.Metrics == nil || !node.Metrics.HostMetricsAvailable {
+			continue
+		}
+		metric := node.Metrics
+		clientMetrics = append(clientMetrics, map[string]any{"node_id": node.ID, "hostname": node.Hostname, "updated_at": metric.UpdatedAt, "cpu_percent": metric.CPUPercent, "memory_bytes": metric.MemoryBytes, "memory_percent": metric.MemoryPercent, "load_1m": metric.Load1, "load_5m": metric.Load5, "load_15m": metric.Load15})
+	}
 	return map[string]any{
 		"schema_version":     snapshot.SchemaVersion,
 		"revision":           snapshot.Revision,
@@ -72,6 +80,7 @@ func (s *Server) canonicalSyncSnapshot(parent context.Context) map[string]any {
 		"diagnostics":        snapshot.Diagnostics,
 		"subsystems":         s.subsystemSyncSnapshot(ctx, snapshot),
 		"controller":         controller,
+		"infrastructure":     map[string]any{"clients": clientMetrics},
 		"storage":            map[string]any{"status": storageStatus, "diagnostic": storageError, "quarantine_status": quarantineStatus, "audit_chain": auditStatus},
 	}
 }
@@ -238,10 +247,14 @@ func (s *Server) releaseReadinessSnapshot(ctx context.Context, now time.Time) ma
 			continue
 		}
 		desired, _ := state["desired_release_hash"].(string)
-		if desired == "" { continue }
+		if desired == "" {
+			continue
+		}
 		managed++
 		active, _ := state["active_release_hash"].(string)
-		if active != desired { drifted++ }
+		if active != desired {
+			drifted++
+		}
 	}
 	result["managed_nodes"], result["release_drifted_nodes"] = managed, drifted
 	result["status"], result["state"] = "idle", "no_release_targets"

@@ -19,4 +19,3 @@ test('V19 operator guide inventories every current primary navigation route', as
     assert.ok(guide.includes(label), `guide missing significant workspace section ${label}`);
   }
 });
-

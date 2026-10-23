@@ -1008,7 +1008,7 @@ func readMetrics(endpoint string) protocol.Metrics {
 
 type hostMetrics struct {
 	cpu, memoryPercent, load1, load5, load15 float64
-	usedBytes                                 uint64
+	usedBytes                                uint64
 }
 
 var hostCPUState struct {
@@ -1029,7 +1029,8 @@ func readHostMetrics() (hostMetrics, bool) {
 	if err != nil {
 		return hostMetrics{}, false
 	}
-	var label string; var user, nice, system, idle, iowait, irq, softirq, steal uint64
+	var label string
+	var user, nice, system, idle, iowait, irq, softirq, steal uint64
 	if _, err := fmt.Sscanf(strings.SplitN(string(stat), "\n", 2)[0], "%s %d %d %d %d %d %d %d %d", &label, &user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal); err != nil {
 		return hostMetrics{}, false
 	}
@@ -1053,8 +1054,12 @@ func readHostMetrics() (hostMetrics, bool) {
 	}
 	var totalKB, availableKB uint64
 	for _, line := range strings.Split(string(mem), "\n") {
-		if strings.HasPrefix(line, "MemTotal:") { _, _ = fmt.Sscanf(line, "MemTotal: %d kB", &totalKB) }
-		if strings.HasPrefix(line, "MemAvailable:") { _, _ = fmt.Sscanf(line, "MemAvailable: %d kB", &availableKB) }
+		if strings.HasPrefix(line, "MemTotal:") {
+			_, _ = fmt.Sscanf(line, "MemTotal: %d kB", &totalKB)
+		}
+		if strings.HasPrefix(line, "MemAvailable:") {
+			_, _ = fmt.Sscanf(line, "MemAvailable: %d kB", &availableKB)
+		}
 	}
 	if totalKB == 0 || availableKB > totalKB {
 		return hostMetrics{}, false

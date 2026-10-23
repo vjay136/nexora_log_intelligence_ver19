@@ -1,5 +1,12 @@
 # Changelog
 
+## [19.0.0-2] - 2026-10-24
+
+- Wired controller, client-host, destination acknowledgement, replay, release-readiness, NHLE, NAPI and NAL evidence into the shared canonical live snapshot and their Monitoring views.
+- Corrected System Health resource mapping, healthy storage diagnostics, missing-versus-zero rendering, NaN guards, and responsive diagnostic-table layout.
+- Added bounded Linux host CPU, memory and load sampling to authenticated client heartbeats, plus controller uptime, memory, goroutine and file-descriptor measurements.
+- Added the complete 39-workspace operator and manager demonstration guide with live, idle, missing and error-state interpretation.
+
 ## [19.0.0-1] - 2026-10-21
 
 - Establish the Ver19 release identity across Go imports, web assets, RPM metadata, installers, bundles, and CI tags.
@@ -224,4 +231,3 @@
 - Split the console into Input Parser Engine and Output Parser Engine workspaces.
 - Add bounded ClickHouse field-column mapping while retaining the complete typed event JSON.
 - Preserve normal systemd status metadata while removing only external GitHub documentation links.
-

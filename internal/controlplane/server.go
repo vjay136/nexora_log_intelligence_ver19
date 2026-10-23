@@ -1094,6 +1094,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 func storageDiagnostic(message string) string {
 	message = strings.ToLower(message)
 	switch {
+	case strings.TrimSpace(message) == "":
+		return "ok"
 	case strings.Contains(message, "http 401"):
 		return "invalid_public_api_key"
 	case strings.Contains(message, "http 403"), strings.Contains(message, "controller authentication failed"):

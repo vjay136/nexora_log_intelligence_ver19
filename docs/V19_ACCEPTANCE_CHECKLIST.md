@@ -27,4 +27,3 @@ Updated: 2026-10-23
 
 Release decision: **BLOCKED from tagging**. Passing source tests alone does not
 authorize a `v19.*` tag or GitHub release.
-

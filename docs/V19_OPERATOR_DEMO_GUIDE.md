@@ -113,4 +113,3 @@ Screenshots are not embedded so this guide remains valid across viewport sizes a
 ## Traceability
 
 Navigation IDs and titles are sourced from `NAV` in `web/app.js`; the loader list and renderer identify controller data paths. Relevant endpoint contracts are under `internal/api`, `telemetry`, and the web UI. When a route is added or renamed, update this inventory and run `npm run web:check`.
-

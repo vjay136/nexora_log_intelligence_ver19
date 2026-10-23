@@ -94,6 +94,9 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/README.md
 
 %changelog
+* Sat Oct 24 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-2
+- Wire canonical telemetry, controller resources, replay and delivery evidence into live monitoring.
+
 * Wed Oct 21 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-1
 - Establish Ver19 release identity, Ver18 upgrade input, and documented rollback path.
 

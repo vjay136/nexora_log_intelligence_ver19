@@ -18,23 +18,23 @@ import (
 const maxRecordLine = 64 << 10
 
 type Record struct {
-	NodeID           string    `json:"node_id"`
-	ReceivedAt       time.Time `json:"received_at"`
-	Timestamp        time.Time `json:"timestamp"`
-	Service          string    `json:"service"`
-	Parser           string    `json:"parser"`
-	Rule             string    `json:"rule,omitempty"`
-	Route            string    `json:"route"`
-	EventID          string    `json:"event_id,omitempty"`
-	EventHash        string    `json:"event_hash,omitempty"`
-	Confidence       float64   `json:"confidence,omitempty"`
-	EvidenceCoverage float64   `json:"evidence_coverage,omitempty"`
-	AttemptCount     int       `json:"attempt_count,omitempty"`
-	FallbackDepth    int       `json:"fallback_depth,omitempty"`
-	FieldCount       int       `json:"field_count,omitempty"`
-	LatencyMs        int64     `json:"latency_ms,omitempty"`
-	Result           string    `json:"result,omitempty"`
-	ErrorCodes       []string  `json:"error_codes,omitempty"`
+	NodeID           string        `json:"node_id"`
+	ReceivedAt       time.Time     `json:"received_at"`
+	Timestamp        time.Time     `json:"timestamp"`
+	Service          string        `json:"service"`
+	Parser           string        `json:"parser"`
+	Rule             string        `json:"rule,omitempty"`
+	Route            string        `json:"route"`
+	EventID          string        `json:"event_id,omitempty"`
+	EventHash        string        `json:"event_hash,omitempty"`
+	Confidence       float64       `json:"confidence,omitempty"`
+	EvidenceCoverage float64       `json:"evidence_coverage,omitempty"`
+	AttemptCount     int           `json:"attempt_count,omitempty"`
+	FallbackDepth    int           `json:"fallback_depth,omitempty"`
+	FieldCount       int           `json:"field_count,omitempty"`
+	LatencyMs        int64         `json:"latency_ms,omitempty"`
+	Result           string        `json:"result,omitempty"`
+	ErrorCodes       []string      `json:"error_codes,omitempty"`
 	DeliveryAcks     []DeliveryAck `json:"delivery_acks,omitempty"`
 }
 
