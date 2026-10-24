@@ -878,6 +878,23 @@ func (s *Server) handleQuarantineReprocess(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
+	// Replay can mutate production records, so the target must first report
+	// applying the exact currently published parser bundle. A rollout proposal
+	// or controller-side publish alone is not an applied acknowledgement.
+	bundle, bundleErr := s.buildActiveParserBundle(r.Context())
+	if bundleErr != nil {
+		jsonError(w, "current parser bundle is unavailable; replay is gated", http.StatusServiceUnavailable)
+		return
+	}
+	syncDoc, syncErr := s.metadata.Get(r.Context(), "fleet-sync", safeID(request.NodeID), 0)
+	syncState := map[string]any{}
+	if syncErr == nil {
+		_ = json.Unmarshal(syncDoc.Payload, &syncState)
+	}
+	if bundle.BundleHash == "" || fmt.Sprint(syncState["active_asset_bundle_hash"]) != bundle.BundleHash {
+		jsonError(w, "target client has not acknowledged the current published parser bundle; replay remains gated", http.StatusConflict)
+		return
+	}
 	if len(unique) == 0 {
 		jsonError(w, "record_ids contains no valid IDs", http.StatusBadRequest)
 		return

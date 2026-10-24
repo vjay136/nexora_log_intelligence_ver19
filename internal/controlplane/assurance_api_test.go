@@ -61,6 +61,15 @@ func TestAssuranceScoreAndParserCandidateLifecycle(t *testing.T) {
 	if response.StatusCode != http.StatusOK || decodeMap(t, data)["state"] != "approved" {
 		t.Fatalf("independent approval %d: %s", response.StatusCode, data)
 	}
+	approvedBundle, err := f.server.buildActiveParserBundle(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, asset := range approvedBundle.Assets {
+		if asset.AssetClass == "parser-packs" && asset.AssetID == id {
+			t.Fatal("approved but unpublished Assurance parser entered runtime desired bundle")
+		}
+	}
 	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+rejectedID+"/reject", map[string]any{"reason": "Held-out cases are incomplete"})
 	if response.StatusCode != http.StatusOK || decodeMap(t, data)["state"] != "rejected" {
 		t.Fatalf("independent rejection %d: %s", response.StatusCode, data)
@@ -68,6 +77,32 @@ func TestAssuranceScoreAndParserCandidateLifecycle(t *testing.T) {
 	rejectedDoc, err := f.server.metadata.Get(context.Background(), "parser-packs", rejectedID, 0)
 	if err != nil || !strings.Contains(string(rejectedDoc.Payload), "Held-out cases are incomplete") {
 		t.Fatalf("review rejection reason not persisted: doc=%+v err=%v", rejectedDoc, err)
+	}
+	f.login("admin", "Admin-password-12345!")
+	f.refreshCSRF()
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+id+"/publish", map[string]any{})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("publish approved runtime parser %d: %s", response.StatusCode, data)
+	}
+	published := decodeMap(t, data)
+	if published["bundle_hash"] == "" {
+		t.Fatalf("publish did not materialize signed runtime bundle: %s", data)
+	}
+	liveBundle, err := f.server.buildActiveParserBundle(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundPublished := false
+	for _, asset := range liveBundle.Assets {
+		if asset.AssetClass == "parser-packs" && asset.AssetID == id && asset.SHA256 != "" {
+			foundPublished = true
+		}
+		if asset.AssetClass == "parser-packs" && asset.AssetID == rejectedID {
+			t.Fatal("rejected Assurance parser entered runtime desired bundle")
+		}
+	}
+	if !foundPublished || liveBundle.BundleHash != published["bundle_hash"] {
+		t.Fatalf("published parser and returned signed hash do not match bundle: found=%t bundle=%s response=%s", foundPublished, liveBundle.BundleHash, data)
 	}
 	response, data = f.request(http.MethodPost, "/api/v1/assurance/run", map[string]any{"raw": `{"level":"INFO","user":"alice"}`, "desired": map[string]any{"level": "INFO", "user": "alice"}})
 	if response.StatusCode != http.StatusOK {
@@ -81,18 +116,24 @@ func TestAssuranceScoreAndParserCandidateLifecycle(t *testing.T) {
 
 func TestParserCreationWorkspaceDraftCanBeReadEditedAndDeleted(t *testing.T) {
 	f := newAPIFixture(t)
+	if err := f.server.storeQuarantineRecord(context.Background(), quarantineRecordInput{ID: "q-workspace-link", NodeID: "node-1", Status: "waiting"}, false); err != nil {
+		t.Fatal(err)
+	}
 	parser := map[string]any{
 		"pattern_type": "regex", "pattern": `status=(?P<status>\w+)`,
 		"fields": []any{map[string]any{"name": "status", "source": "group:status", "type": "string"}},
 	}
 	cases := []any{map[string]any{"raw": "status=OK", "desired": map[string]any{"status": "OK"}}}
-	response, data := f.request(http.MethodPost, "/api/v1/assurance/parsers", map[string]any{"id": "workspace-sample", "name": "Workspace sample", "version": "0.1.0", "parser": parser, "cases": cases})
+	response, data := f.request(http.MethodPost, "/api/v1/assurance/parsers", map[string]any{"id": "workspace-sample", "name": "Workspace sample", "version": "0.1.0", "parser": parser, "cases": cases, "source_quarantine_record_id": "q-workspace-link"})
 	if response.StatusCode != http.StatusCreated {
 		t.Fatalf("create %d: %s", response.StatusCode, data)
 	}
 	response, data = f.request(http.MethodGet, "/api/v1/assurance/parsers/workspace-sample", nil)
 	if response.StatusCode != http.StatusOK || !bytes.Contains(data, []byte(`"Workspace sample"`)) {
 		t.Fatalf("get %d: %s", response.StatusCode, data)
+	}
+	if !bytes.Contains(data, []byte(`"source_quarantine_record_id":"q-workspace-link"`)) {
+		t.Fatalf("draft lost its quarantine evidence association: %s", data)
 	}
 	response, data = f.request(http.MethodPut, "/api/v1/assurance/parsers/workspace-sample", map[string]any{"name": "Workspace revised", "version": "0.2.0", "parser": parser, "cases": cases})
 	if response.StatusCode != http.StatusOK {

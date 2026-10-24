@@ -19,7 +19,7 @@ import (
 	metastore "nexora.local/nli-v19/internal/store"
 )
 
-var parserAssetCollections = []string{"kv-config", "static-patterns", "projections", "templates", "regex-patterns", "known-keys", "semantic-extraction"}
+var parserAssetCollections = []string{"kv-config", "static-patterns", "projections", "templates", "regex-patterns", "known-keys", "semantic-extraction", "parser-packs"}
 
 type parserBundleAsset struct {
 	AssetClass string          `json:"asset_class"`
@@ -57,11 +57,29 @@ func (s *Server) buildActiveParserBundle(ctx context.Context) (parserAssetBundle
 		}
 		for _, doc := range page {
 			if doc.State != "active" || doc.Deleted {
-				continue
+				if collection != "parser-packs" || doc.State != "published" || doc.Deleted {
+					continue
+				}
 			}
 			var payload map[string]any
 			if err := json.Unmarshal(doc.Payload, &payload); err != nil {
 				return bundle, fmt.Errorf("invalid active parser asset %s/%s", collection, doc.ID)
+			}
+			if collection == "parser-packs" {
+				// Assurance candidates are not runtime packs. Only the publish action
+				// writes this strict, sealed ParserPack after independent approval.
+				runtimePack, ok := payload["runtime_pack"]
+				if !ok || payload["review_state"] != "published" {
+					continue
+				}
+				encoded, err := json.Marshal(runtimePack)
+				if err != nil {
+					return bundle, fmt.Errorf("invalid published runtime parser %s", doc.ID)
+				}
+				digest := sha256.Sum256(encoded)
+				name, _ := payload["name"].(string)
+				bundle.Assets = append(bundle.Assets, parserBundleAsset{AssetClass: collection, AssetID: doc.ID, Name: name, Revision: doc.Revision, SHA256: hex.EncodeToString(digest[:]), Payload: encoded})
+				continue
 			}
 			name, _ := payload["name"].(string)
 			bundle.Assets = append(bundle.Assets, parserBundleAsset{AssetClass: collection, AssetID: doc.ID, Name: name, Revision: doc.Revision, SHA256: doc.Hash, Payload: append(json.RawMessage(nil), doc.Payload...)})

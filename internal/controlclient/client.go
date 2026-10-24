@@ -35,6 +35,7 @@ import (
 	"nexora.local/nli-v19/internal/protocol"
 	"nexora.local/nli-v19/internal/registry"
 	"nexora.local/nli-v19/internal/rollout"
+	"nexora.local/nli-v19/parser-policy"
 	"nexora.local/nli-v19/telemetry"
 )
 
@@ -701,15 +702,22 @@ func (c *Client) applyAssetBundle(ctx context.Context, data []byte) (string, err
 	if computed != bundle.BundleHash {
 		return "", errors.New("parser asset bundle hash verification failed")
 	}
-	allowed := map[string]string{"kv-config": "kv", "static-patterns": "static-patterns", "projections": "projections", "templates": "templates", "regex-patterns": "regex", "known-keys": "known-keys", "semantic-extraction": "semantic-extraction"}
+	allowed := map[string]string{"kv-config": "kv", "static-patterns": "static-patterns", "projections": "projections", "templates": "templates", "regex-patterns": "regex", "known-keys": "known-keys", "semantic-extraction": "semantic-extraction", "parser-packs": ""}
 	parent := filepath.Dir(c.cfg.AssetDir)
 	if err := os.MkdirAll(parent, 0750); err != nil {
 		return "", err
 	}
 	staging := c.cfg.AssetDir + ".staging"
 	backup := c.cfg.AssetDir + ".backup"
+	parserStaging := c.cfg.ParserDir + ".bundle-staging"
+	parserBackup := c.cfg.ParserDir + ".bundle-backup"
 	_ = os.RemoveAll(staging)
+	_ = os.RemoveAll(parserStaging)
 	if err := os.MkdirAll(staging, 0750); err != nil {
+		return "", err
+	}
+	if err := copyParserDirectory(c.cfg.ParserDir, parserStaging); err != nil {
+		_ = os.RemoveAll(staging)
 		return "", err
 	}
 	seen := map[string]bool{}
@@ -730,9 +738,24 @@ func (c *Client) applyAssetBundle(ctx context.Context, data []byte) (string, err
 			return "", errors.New("duplicate parser asset in bundle")
 		}
 		seen[key] = true
+		if asset.AssetClass == "parser-packs" {
+			pack, err := parserpolicy.LoadParserPackBytes(asset.Payload)
+			if err != nil || pack.ID != asset.AssetID {
+				_ = os.RemoveAll(staging)
+				_ = os.RemoveAll(parserStaging)
+				return "", errors.New("published parser pack failed strict runtime validation")
+			}
+			if err := writeSynchronizedAsset(filepath.Join(parserStaging, asset.AssetID+".json"), asset.Payload); err != nil {
+				_ = os.RemoveAll(staging)
+				_ = os.RemoveAll(parserStaging)
+				return "", err
+			}
+			continue
+		}
 		assetDir := filepath.Join(staging, dir)
 		if err := os.MkdirAll(assetDir, 0750); err != nil {
 			_ = os.RemoveAll(staging)
+			_ = os.RemoveAll(parserStaging)
 			return "", err
 		}
 		encoded, err := json.Marshal(asset)
@@ -747,26 +770,73 @@ func (c *Client) applyAssetBundle(ctx context.Context, data []byte) (string, err
 	}
 	if err := writeSynchronizedAsset(filepath.Join(staging, "bundle.json"), data); err != nil {
 		_ = os.RemoveAll(staging)
+		_ = os.RemoveAll(parserStaging)
 		return "", err
 	}
 	_ = os.RemoveAll(backup)
+	_ = os.RemoveAll(parserBackup)
 	if _, err := os.Stat(c.cfg.AssetDir); err == nil {
 		if err := os.Rename(c.cfg.AssetDir, backup); err != nil {
 			_ = os.RemoveAll(staging)
 			return "", err
 		}
 	}
+	if _, err := os.Stat(c.cfg.ParserDir); err == nil {
+		if err := os.Rename(c.cfg.ParserDir, parserBackup); err != nil {
+			_ = os.Rename(backup, c.cfg.AssetDir)
+			_ = os.RemoveAll(staging)
+			_ = os.RemoveAll(parserStaging)
+			return "", err
+		}
+	}
+	if err := os.Rename(parserStaging, c.cfg.ParserDir); err != nil {
+		_ = os.Rename(parserBackup, c.cfg.ParserDir)
+		_ = os.Rename(backup, c.cfg.AssetDir)
+		_ = os.RemoveAll(staging)
+		return "", err
+	}
 	if err := os.Rename(staging, c.cfg.AssetDir); err != nil {
+		_ = os.RemoveAll(c.cfg.ParserDir)
+		_ = os.Rename(parserBackup, c.cfg.ParserDir)
 		_ = os.Rename(backup, c.cfg.AssetDir)
 		return "", err
 	}
 	if err := c.executor.RestartAgent(ctx); err != nil {
 		_ = os.RemoveAll(c.cfg.AssetDir)
+		_ = os.RemoveAll(c.cfg.ParserDir)
+		_ = os.Rename(parserBackup, c.cfg.ParserDir)
 		_ = os.Rename(backup, c.cfg.AssetDir)
-		return "", fmt.Errorf("restart failed; parser assets restored: %w", err)
+		return "", fmt.Errorf("restart failed; parser assets and runtime packs restored: %w", err)
 	}
 	_ = os.RemoveAll(backup)
+	_ = os.RemoveAll(parserBackup)
 	return fmt.Sprintf("%d revisioned parser assets validated and synchronized (bundle %s)", len(bundle.Assets), bundle.BundleHash), nil
+}
+
+func copyParserDirectory(source, destination string) error {
+	if err := os.MkdirAll(destination, 0750); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(source)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(source, entry.Name()))
+		if err != nil {
+			return err
+		}
+		if err := writeSynchronizedAsset(filepath.Join(destination, entry.Name()), data); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // writeSynchronizedAsset reapplies the final mode after creation so a

@@ -517,11 +517,12 @@ func (s *Server) handleAssuranceAIProposal(w http.ResponseWriter, r *http.Reques
 }
 
 type assuranceParserInput struct {
-	ID      string             `json:"id"`
-	Name    string             `json:"name"`
-	Version string             `json:"version"`
-	Parser  map[string]any     `json:"parser"`
-	Cases   []assuranceRequest `json:"cases"`
+	ID                       string             `json:"id"`
+	Name                     string             `json:"name"`
+	Version                  string             `json:"version"`
+	Parser                   map[string]any     `json:"parser"`
+	Cases                    []assuranceRequest `json:"cases"`
+	SourceQuarantineRecordID string             `json:"source_quarantine_record_id,omitempty"`
 }
 
 func validateParserCandidate(definition map[string]any, cases []assuranceRequest) map[string]any {
@@ -616,6 +617,11 @@ func (s *Server) handleAssuranceParsers(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "unsafe declarative parser", 400)
 		return
 	}
+	sourceEvidenceID := safeID(input.SourceQuarantineRecordID)
+	if input.SourceQuarantineRecordID != "" && sourceEvidenceID == "" {
+		jsonError(w, "source quarantine record ID is invalid", 400)
+		return
+	}
 	id := safeID(input.ID)
 	if id == "" {
 		id = safeID(input.Name)
@@ -629,7 +635,7 @@ func (s *Server) handleAssuranceParsers(w http.ResponseWriter, r *http.Request) 
 		input.Parser["version"] = 1
 	}
 	validation := validateParserCandidate(input.Parser, input.Cases)
-	payload, _ := json.Marshal(map[string]any{"id": id, "name": input.Name, "version": input.Version, "parser": input.Parser, "cases": input.Cases, "validation": validation, "validation_passed": validation["failed"] == 0 && validation["total"] == len(input.Cases), "review_state": "draft", "activated": false})
+	payload, _ := json.Marshal(map[string]any{"id": id, "name": input.Name, "version": input.Version, "parser": input.Parser, "cases": input.Cases, "validation": validation, "validation_passed": validation["failed"] == 0 && validation["total"] == len(input.Cases), "review_state": "draft", "activated": false, "source_quarantine_record_id": sourceEvidenceID})
 	saved, err := s.metadata.Put(r.Context(), metastore.Document{Collection: "parser-packs", ID: id, State: "draft", Payload: payload, CreatedBy: p.Username})
 	if err != nil {
 		jsonError(w, "parser draft persistence failed", 500)
@@ -638,6 +644,21 @@ func (s *Server) handleAssuranceParsers(w http.ResponseWriter, r *http.Request) 
 	s.auditAction(p, "assurance.parser_draft", "parser-packs/"+id, "success", nil)
 	jsonCreated(w, map[string]any{"id": id, "revision": saved.Revision, "state": "draft", "validation": validation})
 }
+
+func (s *Server) validateParserEvidenceLink(w http.ResponseWriter, r *http.Request, recordID string) bool {
+	if recordID == "" {
+		return true
+	}
+	if s.authorize(w, r, middleware.PermissionReadLogs) == nil {
+		return false
+	}
+	if _, _, err := s.getQuarantineRecord(r.Context(), recordID); err != nil {
+		jsonError(w, "linked quarantine record not found", http.StatusNotFound)
+		return false
+	}
+	return true
+}
+
 func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/v1/assurance/parsers/"), "/")
 	parts := strings.Split(path, "/")
@@ -669,6 +690,8 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			var input assuranceParserInput
+			var previous map[string]any
+			_ = json.Unmarshal(doc.Payload, &previous)
 			if decodeJSON(r, &input, 2<<20) != nil || strings.TrimSpace(input.Name) == "" || len(input.Cases) == 0 || len(input.Cases) > 100 {
 				jsonError(w, "name and 1..100 validation cases are required", 400)
 				return
@@ -680,12 +703,23 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 				jsonError(w, "safe declarative parser and semantic version are required", 400)
 				return
 			}
+			sourceEvidenceID := safeID(input.SourceQuarantineRecordID)
+			if input.SourceQuarantineRecordID != "" && sourceEvidenceID == "" {
+				jsonError(w, "source quarantine record ID is invalid", 400)
+				return
+			}
+			if sourceEvidenceID == "" {
+				sourceEvidenceID, _ = previous["source_quarantine_record_id"].(string)
+			}
 			input.Parser["id"] = id
 			if _, ok := input.Parser["version"]; !ok {
 				input.Parser["version"] = 1
 			}
 			validation := validateParserCandidate(input.Parser, input.Cases)
-			payload, _ := json.Marshal(map[string]any{"id": id, "name": input.Name, "version": input.Version, "parser": input.Parser, "cases": input.Cases, "validation": validation, "validation_passed": validation["failed"] == 0 && validation["total"] == len(input.Cases), "review_state": "draft", "activated": false})
+			if !s.validateParserEvidenceLink(w, r, sourceEvidenceID) {
+				return
+			}
+			payload, _ := json.Marshal(map[string]any{"id": id, "name": input.Name, "version": input.Version, "parser": input.Parser, "cases": input.Cases, "validation": validation, "validation_passed": validation["failed"] == 0 && validation["total"] == len(input.Cases), "review_state": "draft", "activated": false, "source_quarantine_record_id": sourceEvidenceID})
 			saved, err := s.metadata.Put(r.Context(), metastore.Document{Collection: "parser-packs", ID: id, State: "draft", Payload: payload, CreatedBy: doc.CreatedBy})
 			if err != nil {
 				jsonError(w, "parser draft update failed", 500)
@@ -798,6 +832,18 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "only approved parsers can be published", 409)
 			return
 		}
+		definition, _ := body["parser"].(map[string]any)
+		var cases []assuranceRequest
+		if encoded, marshalErr := json.Marshal(body["cases"]); marshalErr == nil {
+			_ = json.Unmarshal(encoded, &cases)
+		}
+		version, _ := body["version"].(string)
+		pack, packErr := assuranceRuntimePack(id, version, doc.CreatedBy, definition, cases)
+		if packErr != nil {
+			jsonError(w, "parser is approved but cannot be installed by the runtime: "+packErr.Error(), 409)
+			return
+		}
+		body["runtime_pack"] = pack
 		body["review_state"] = "published"
 		body["activated"] = true
 		body["published_by"] = p.Username
@@ -813,7 +859,28 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.auditAction(p, "assurance.parser_"+action, "parser-packs/"+id, "success", nil)
-	jsonOK(w, map[string]any{"id": id, "revision": saved.Revision, "state": state, "review_state": state, "published": state == "published"})
+	response := map[string]any{"id": id, "revision": saved.Revision, "state": state, "review_state": state, "published": state == "published"}
+	if action == "publish" {
+		bundle, bundleErr := s.buildActiveParserBundle(r.Context())
+		if bundleErr == nil {
+			_, bundleErr = s.materializeParserBundle(bundle)
+		}
+		var rollout *rolloutRecord
+		if bundleErr == nil {
+			rollout, bundleErr = s.startParserBundleRollout(r.Context(), p.Username, "Publish Assurance parser "+id, bundle, nil)
+		}
+		if bundleErr != nil {
+			s.auditAction(p, "assurance.parser_publish_sync_failed", "parser-packs/"+id, "failure", map[string]string{"error": bundleErr.Error()})
+			jsonError(w, "parser published but signed fleet bundle could not be prepared: "+bundleErr.Error(), 503)
+			return
+		}
+		response["bundle_hash"] = bundle.BundleHash
+		if rollout != nil {
+			response["rollout_id"] = rollout.ID
+			response["rollout_state"] = rollout.Status
+		}
+	}
+	jsonOK(w, response)
 }
 func (s *Server) recordAssuranceHistory(result map[string]any, actor string) {
 	id := fmt.Sprintf("run-%d", time.Now().UnixNano())

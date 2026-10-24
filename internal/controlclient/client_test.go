@@ -21,6 +21,7 @@ import (
 
 	"nexora.local/nli-v19/internal/protocol"
 	"nexora.local/nli-v19/internal/rollout"
+	"nexora.local/nli-v19/parser-policy"
 	"nexora.local/nli-v19/telemetry"
 )
 
@@ -300,6 +301,13 @@ func TestParserAssetBundleSynchronizesEveryRuntimeAssetClass(t *testing.T) {
 			Revision: 1, SHA256: fmt.Sprintf("%x", digest[:]), Payload: payload,
 		})
 	}
+	pack := &parserpolicy.ParserPack{ID: "assurance-runtime", Version: "1.0.0", Revision: 1, SourceType: "manual", Author: "operator", ReviewState: parserpolicy.ReviewStateApproved, CreatedAt: time.Now().UTC(), ResourceLimits: parserpolicy.DefaultResourceLimits(), Rules: []parserpolicy.ParserRule{{ID: "assurance-runtime-rule", Name: "Assurance runtime", Priority: 1, ServiceSelectors: []string{"mail"}, Stages: []parserpolicy.Stage{{ID: "regex", Name: "Regex", Type: parserpolicy.StageTypeRegex, Config: map[string]any{"pattern": `status=(?P<status>\w+)`, "groups": map[string]string{"status": "status"}}, FailurePolicy: parserpolicy.FailurePolicyRejectRule}}, FailurePolicy: parserpolicy.FailurePolicyQuarantine, FieldSchema: map[string]parserpolicy.FieldDef{"status": {Type: parserpolicy.FieldTypeString}}, ProjectionMode: parserpolicy.ProjectionModeAllowlist, AllowedFields: []string{"status"}, CountPolicy: parserpolicy.CountPolicyExactSource}}}
+	if err := parserpolicy.SealParserPack(pack); err != nil {
+		t.Fatal(err)
+	}
+	packPayload, _ := json.Marshal(pack)
+	packDigest := sha256.Sum256(packPayload)
+	bundle.Assets = append(bundle.Assets, synchronizedAsset{AssetClass: "parser-packs", AssetID: pack.ID, Name: "Assurance runtime", Revision: 3, SHA256: fmt.Sprintf("%x", packDigest[:]), Payload: packPayload})
 	bundle.BundleHash, err = synchronizedBundleHash(bundle)
 	if err != nil {
 		t.Fatal(err)
@@ -310,7 +318,7 @@ func TestParserAssetBundleSynchronizesEveryRuntimeAssetClass(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(message, "7 revisioned parser assets validated and synchronized") || executor.restarts != 1 {
+	if !strings.Contains(message, "8 revisioned parser assets validated and synchronized") || executor.restarts != 1 {
 		t.Fatalf("unexpected sync result: message=%q restarts=%d", message, executor.restarts)
 	}
 	directories := map[string]string{"kv-config": "kv", "static-patterns": "static-patterns", "projections": "projections", "templates": "templates", "regex-patterns": "regex", "known-keys": "known-keys", "semantic-extraction": "semantic-extraction"}
@@ -328,8 +336,15 @@ func TestParserAssetBundleSynchronizesEveryRuntimeAssetClass(t *testing.T) {
 		}
 	}
 	hash, revisions := activeAssetBundleStatus(filepath.Join(client.cfg.AssetDir, "bundle.json"))
-	if hash != bundle.BundleHash || len(revisions) != len(classes) {
+	if hash != bundle.BundleHash || len(revisions) != len(classes)+1 {
 		t.Fatalf("active bundle status mismatch: hash=%q revisions=%v", hash, revisions)
+	}
+	installed, err := os.ReadFile(filepath.Join(client.cfg.ParserDir, pack.ID+".json"))
+	if err != nil || string(installed) != string(packPayload) {
+		t.Fatalf("published runtime pack payload did not reach parser directory byte-for-byte: %v", err)
+	}
+	if _, err := parserpolicy.LoadParserPackBytes(installed); err != nil {
+		t.Fatalf("installed parser pack is not runtime-compatible: %v", err)
 	}
 }
 
