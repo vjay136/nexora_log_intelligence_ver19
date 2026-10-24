@@ -108,10 +108,14 @@ type FileWriter struct {
 
 const fileWriterBufferSize = 256 * 1024
 
-// NewFileWriter opens (creates if needed) the output file.
+// NewFileWriter validates and prepares a file destination. The file itself is
+// created on the first matching record.
 func NewFileWriter(cfg Config) (*FileWriter, error) {
 	w := &FileWriter{cfg: cfg, now: time.Now}
-	if _, err := w.ensureCurrentFile(); err != nil {
+	// Validate destination configuration without creating the file. Routers
+	// construct every configured family destination at startup, but most
+	// deployments only receive records for a subset of those families.
+	if _, err := resolveFilePath(cfg, w.now().UTC()); err != nil {
 		return nil, err
 	}
 	return w, nil
@@ -332,9 +336,9 @@ func (r *Router) Flush() error {
 func (w *FileWriter) Flush() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if _, err := w.ensureCurrentFile(); err != nil {
-		return err
-	}
+	// A flush is a durability barrier for records already written. It must not
+	// create an otherwise unused destination (or create the next hourly file
+	// merely because a different family's router was flushed).
 	return w.flushAndSyncLocked()
 }
 

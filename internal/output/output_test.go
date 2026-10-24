@@ -61,6 +61,40 @@ func TestFileWriterFlushMakesBufferedRecordDurable(t *testing.T) {
 	}
 }
 
+func TestFileWriterDoesNotCreateUnusedDestinationOnInitOrFlush(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "imap_normalised.jsonl")
+	writer, err := output.NewFileWriter(output.Config{Type: "file", Path: path, Routes: []string{"normal"}, Families: []string{"imap"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	if err := writer.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("unused output destination exists after init/flush, stat err=%v", err)
+	}
+	if err := writer.Write([]byte(eventPayload), "quarantine"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("route-filtered record created output destination, stat err=%v", err)
+	}
+	if err := writer.Write([]byte(eventPayload), "normal"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != eventPayload+"\n" {
+		t.Fatalf("first matching event was not persisted: data=%q err=%v", data, err)
+	}
+}
+
 func TestLokiWriterSpoolsOnFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "down", http.StatusServiceUnavailable)
