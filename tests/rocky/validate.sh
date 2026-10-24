@@ -135,9 +135,39 @@ systemctl enable --now nli-controller-agent.service nli-agent.service nli-client
 assert_services_healthy initial-start
 
 for output_family in auto imap pop webtop-webmail mta smtp-in smtp-out pabd capd pss; do
-  compgen -G "/var/log/nli/output/${output_family}_normalised_[0-9]*.jsonl" >/dev/null || fail "agent did not create hourly normalised output: ${output_family}"
-  compgen -G "/var/log/nli/output/${output_family}_quarantine_[0-9]*.jsonl" >/dev/null || fail "agent did not create hourly quarantine output: ${output_family}"
+  ! compgen -G "/var/log/nli/output/${output_family}_normalised_[0-9]*.jsonl" >/dev/null || fail "agent created an unused normalised output: ${output_family}"
+  ! compgen -G "/var/log/nli/output/${output_family}_quarantine_[0-9]*.jsonl" >/dev/null || fail "agent created an unused quarantine output: ${output_family}"
 done
+[[ -d /var/lib/nli/parsers/quarantine ]] || fail "atomic parser synchronization omitted the runtime quarantine directory"
+runuser -u nli -- test -w /var/lib/nli/parsers/quarantine || fail "runtime quarantine directory is not writable by the nli agent"
+
+count_auto_records() {
+  local files=()
+  shopt -s nullglob
+  files=(/var/log/nli/output/auto_normalised_[0-9]*.jsonl /var/log/nli/output/auto_quarantine_[0-9]*.jsonl)
+  if (( ${#files[@]} == 0 )); then
+    printf '0\n'
+  else
+    cat "${files[@]}" | wc -l
+  fi
+}
+for index in $(seq 1 49); do
+  printf '{"event":"release-lifecycle-%02d","status":"ok"}\n' "$index"
+done >>/var/log/nli/input/auto.log
+for _ in $(seq 1 30); do
+  auto_records=$(count_auto_records)
+  (( auto_records <= 49 )) || fail "49 input records produced $auto_records routed records"
+  [[ $auto_records == 49 ]] && break
+  sleep 1
+done
+[[ $(count_auto_records) == 49 ]] || fail "49 input records did not produce exactly 49 normalised-plus-quarantine records"
+sleep 6
+[[ $(count_auto_records) == 49 ]] || fail "idle agent duplicated the 49-record input"
+systemctl restart nli-agent
+for _ in $(seq 1 30); do systemctl is-active --quiet nli-agent && break; sleep 1; done
+systemctl is-active --quiet nli-agent || fail "agent did not restart after exact-count acceptance"
+sleep 6
+[[ $(count_auto_records) == 49 ]] || fail "agent restart replayed already checkpointed input"
 
 [[ $(nli version) == 'nli 19.0.0' ]] || fail "CLI reports the wrong version"
 [[ $(nli-agent --version) == 'nli-agent 19.0.0' ]] || fail "agent reports the wrong version"
