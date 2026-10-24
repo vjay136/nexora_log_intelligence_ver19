@@ -1,5 +1,15 @@
 # NLI v19 release infrastructure
 
+## Release 19.0.0-3
+
+This release fixes the reported duplicate-output and continuously increasing-count defect. The client now checkpoints every completed input prefix before a pending multiline record, makes durable local output authoritative before optional telemetry delivery, avoids replay after optional Loki, ClickHouse, or controller telemetry failures, and creates family output files only when that family receives a record.
+
+The release also adds an audited quarantine recovery workflow from evidence review through parser drafting, testing, independent approval, signed fleet rollout, client bundle-hash acknowledgement, targeted replay, and verification. Raw evidence can be viewed, exported, excluded, restored, or purged under role-based permissions without silently changing production parser behavior.
+
+Operational additions include queued SMTP and PagerDuty notifications, persistent delivery history, a live Client → Controller → WebApp communication-status view, stable background synchronization, browser branding, corrected timestamps, and explicit subsystem names and execution order for NHLE, NURSF, NAPI, NAL, NUPIRE, and EGPE.
+
+Use `V19_PRODUCTION_ACCEPTANCE_TESTS.md` for the exact 49-record acceptance test and `V19_OPERATOR_DEMO_GUIDE.md` for the complete tab-by-tab demonstration. `V19_SUBSYSTEM_ORCHESTRATION.md` explains which subsystems run on ordinary traffic and which run only during evidence-gated recovery.
+
 This directory documents the only supported V19 release path. It builds source-derived static Linux binaries in a digest-pinned Go image, creates genuine RPMs with `rpmbuild` in a digest-pinned Rocky image, performs a two-pass byte-for-byte reproducibility check, and emits checksums, SPDX SBOM, release manifest, binary provenance, and an in-toto/SLSA provenance statement.
 
 ## Safety and prerequisites
