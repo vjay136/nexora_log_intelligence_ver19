@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 // These browser regressions verify frontend behavior independently of network
 // and database availability. e2e.spec.js separately exercises a real controller.
 const origin = 'http://127.0.0.1:4176';
-const tabs = ['operations', 'monitoring', 'streams', 'sync-fabric', 'nhle-monitor', 'napi-monitor', 'nal-monitor', 'assurance', 'parser-workspace', 'nupire', 'api-monitor', 'field-integrity', 'fleet', 'parser-sync', 'clients', 'controller', 'parsers', 'migration', 'input-paths', 'kv', 'static', 'projection', 'studio', 'regex', 'knownkeys', 'semantic', 'engine-network', 'engine-url', 'engine-email', 'engine-subject', 'outputs', 'metadata', 'unknowns', 'drift', 'performance', 'rollouts', 'artifacts', 'security', 'system', 'ai'];
+const tabs = ['operations', 'monitoring', 'streams', 'sync-fabric', 'nhle-monitor', 'napi-monitor', 'nal-monitor', 'assurance', 'parser-workspace', 'nupire', 'api-monitor', 'field-integrity', 'fleet', 'parser-sync', 'clients', 'controller', 'parsers', 'migration', 'input-paths', 'kv', 'static', 'projection', 'studio', 'regex', 'knownkeys', 'semantic', 'engine-network', 'engine-url', 'engine-email', 'engine-subject', 'outputs', 'metadata', 'unknowns', 'drift', 'performance', 'rollouts', 'artifacts', 'security', 'system', 'communications', 'notifications', 'ai'];
 const assets = Object.fromEntries(await Promise.all(['index.html', 'app.js', 'styles.css', 'nli-mark.svg', 'nexora-logo-v19.png', 'login-banner-v19.png', 'nexora-poster-v19.png'].map(async name => [name, await readFile(new URL(name, import.meta.url))])));
 
 async function mockController(page, { role = 'admin', healthIdentity = 'v19' } = {}) {
@@ -21,6 +21,8 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
   const inputProfiles = [];
   const inputRolloutSaves = [];
   const rolloutSaves = [];
+  const users = [];
+  const auditEvents = [];
   let authenticated = false;
   await page.route(`${origin}/**`, async route => {
     const request = route.request();
@@ -97,12 +99,17 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
     if (path === '/api/v1/rollouts') return fulfill({ proposals: [], live: [] });
     if (path === '/api/v1/artifacts') return fulfill({ artifacts: [], signing_keys_configured: 0 });
     if (path === '/api/v1/rbac/roles') return fulfill({ roles: { viewer: ['assurance:run'], admin: ['*'] } });
-    if (path === '/api/v1/users') return fulfill({ users: [] });
-    if (path === '/api/v1/audit') return fulfill({ verification: 'ok', events: [] });
+    if (path === '/api/v1/users') return fulfill({ users });
+    if (path === '/api/v1/audit') return fulfill({ verification: 'ok', events: auditEvents });
+    if (path === '/api/v1/communications/browser-heartbeat' && request.method() === 'POST') return fulfill({ status: 'recorded', observed_at: new Date().toISOString() });
+    if (path === '/api/v1/communications/status') return fulfill({ generated_at: new Date().toISOString(), path: [{ hop: 'client_to_controller', state: 'live', evidence: 'client heartbeat', clients: [{ node_id: 'node-1', hostname: 'mail-node-1', state: 'live', last_seen: new Date().toISOString(), age_seconds: 0, heartbeat_status: 'live' }], client_count: 1 }, { hop: 'controller_internal', state: 'live', evidence: 'controller health', observed_at: new Date().toISOString() }, { hop: 'controller_to_webapp', state: 'live', evidence: 'browser heartbeat', browser: { state: 'live', status: 'recorded', observed_at: new Date().toISOString(), age_seconds: 0, username: 'test-operator', evidence: 'heartbeat accepted' } }], canonical: { revision: 7, generated_at: new Date().toISOString(), schema_version: 'nli.sync.v1', target_interval_ms: 1000 } });
+    if (path === '/api/v1/notifications') return fulfill({ notifications: [], count: 0, delivery_history: [], policy: {} });
+    if (path === '/api/v1/notifications/config') return fulfill({ policy: { enabled: true }, channels: { email: { state: 'configured_not_dispatched' }, pagerduty: { state: 'not_configured' } } });
+    if (path.match(/^\/api\/v1\/notifications\/audit-[^/]+$/) && request.method() === 'POST') return fulfill({ status: 'acknowledged' });
     if (path === '/api/v1/system') return fulfill({ version: '19.0.0', health: 'ok', storage: { mode: 'supabase', status: 'connected' }, security: { audit_chain: 'ok' } });
     return fulfill({ error: `Unmocked API: ${path}` }, 500);
   });
-  return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, assuranceRuns, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves };
+  return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, assuranceRuns, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves, users, auditEvents };
 }
 
 async function login(page) {
@@ -292,6 +299,34 @@ test('premium login keeps the square V19 emblem and banner fully contained on de
   expect(geometry.width).toBeGreaterThan(240);
   expect(Math.abs(geometry.width-geometry.height)).toBeLessThanOrEqual(1);
   expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+});
+
+test('browser brand, Assurance selection, and account/audit timestamps stay explicit', async ({ page }) => {
+  const mock = await mockController(page);
+  mock.users.push({ username: 'test-operator', email: 'operator@example.test', role: 'admin', active: true, created_at: '2026-10-24T00:34:56Z', last_login: '2026-10-24T01:02:03Z' });
+  mock.auditEvents.push({ sequence: 9, timestamp: '2026-10-24T02:03:04Z', actor: 'admin', role: 'admin', action: 'user.approved', resource: 'test-operator', outcome: 'approved' });
+  await login(page);
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', './nli-mark.svg');
+  await page.getByTestId('nav-assurance').click();
+  const corpusTab = page.locator('[data-assurance-tab="corpus"]');
+  await corpusTab.click();
+  await expect(corpusTab).toHaveClass(/active/);
+  await expect(corpusTab).toHaveAttribute('aria-selected', 'true');
+  await page.getByTestId('nav-security').click();
+  const usersPanel = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Users' }) });
+  const created = usersPanel.locator('tr', { hasText: 'test-operator' }).locator('td').nth(4);
+  const expected = await page.evaluate(() => new Intl.DateTimeFormat(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' }).format(new Date('2026-10-24T00:34:56Z')));
+  await expect(created).toHaveText(expected);
+  expect(expected).toMatch(/\d{2}:\d{2}:\d{2}/);
+  const auditPanel = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Immutable audit chain' }) });
+  const approvalTime = auditPanel.locator('tr', { hasText: 'user.approved' }).locator('td').nth(1);
+  const approvalExpected = await page.evaluate(() => new Intl.DateTimeFormat(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' }).format(new Date('2026-10-24T02:03:04Z')));
+  await expect(approvalTime).toHaveText(approvalExpected);
+  await page.getByTestId('nav-communications').click();
+  await expect(page.getByText('Client → Controller')).toBeVisible();
+  await page.getByTestId('nav-notifications').click();
+  await expect(page.getByText('configured_not_dispatched')).toBeVisible();
+  expect(mock.observed).toContain('POST /api/v1/communications/browser-heartbeat');
 });
 
 test('Assurance Lab tabs isolate each workflow and expose complete generated outputs', async ({ page }) => {
