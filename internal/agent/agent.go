@@ -767,10 +767,11 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 	var quarantineMu sync.Mutex
 	// Persist only acknowledged events. Buffered multiline input stays replayable
 	// from the previous durable offset if the process stops before emission.
-	commit := func(t *tail) error {
-		if t.ml.Pending() {
-			return nil
-		}
+	// A completed event may precede a new, still-pending multiline record in the
+	// same read batch. Persisting its safe prefix prevents a restart from
+	// replaying already-written completed events while that final record waits
+	// for the multiline timeout.
+	persistCursor := func(t *tail, state cursor) error {
 		if v5Router != nil {
 			if err := v5Router.Flush(); err != nil {
 				return err
@@ -780,8 +781,14 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 		}
 		runtimeMu.Lock()
 		defer runtimeMu.Unlock()
-		states[t.input.Path] = t.state
+		states[t.input.Path] = state
 		return checkpoint(statePath, states)
+	}
+	commit := func(t *tail) error {
+		if t.ml.Pending() {
+			return nil
+		}
+		return persistCursor(t, t.state)
 	}
 	checkpointedOffset := func(path string) int64 {
 		runtimeMu.Lock()
@@ -1157,6 +1164,7 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 				return nil
 			}
 			readStarted := time.Now()
+			recordStart := t.state.Offset
 			raw, n, complete, oversized, e := readRecord(reader)
 			if e != nil {
 				return e
@@ -1190,6 +1198,16 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 				}
 				if err := emitSelected(t, result.Line, result.Truncated, resultOversized); err != nil {
 					return err
+				}
+				if t.ml.Pending() {
+					// Feed emitted the completed event and retained this physical
+					// record as the start of the next multiline event. t.state is
+					// still at recordStart here, so it is the acknowledged prefix.
+					prefix := t.state
+					prefix.Offset = recordStart
+					if e = persistCursor(t, prefix); e != nil {
+						return e
+					}
 				}
 			} else if recordOversized && t.ml.Pending() {
 				t.ml.MarkTruncated()
