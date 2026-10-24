@@ -30,12 +30,8 @@ func TestRouteV5QuarantineIsTelemetryOnly(t *testing.T) {
 	if err := router.Flush(); err != nil {
 		t.Fatal(err)
 	}
-	customer, err := os.ReadFile(customerPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(customer) != 0 {
-		t.Fatalf("quarantine emitted customer data: %s", customer)
+	if _, err := os.Stat(customerPath); !os.IsNotExist(err) {
+		t.Fatalf("quarantine created a customer destination without a customer record: %v", err)
 	}
 	encoded, err := os.ReadFile(metadataPath)
 	if err != nil {
