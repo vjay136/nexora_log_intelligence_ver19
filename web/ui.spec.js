@@ -23,6 +23,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
   const rolloutSaves = [];
   const users = [];
   const auditEvents = [];
+  const notificationPolicySaves = [];
   let authenticated = false;
   await page.route(`${origin}/**`, async route => {
     const request = route.request();
@@ -104,12 +105,13 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
     if (path === '/api/v1/communications/browser-heartbeat' && request.method() === 'POST') return fulfill({ status: 'recorded', observed_at: new Date().toISOString() });
     if (path === '/api/v1/communications/status') return fulfill({ generated_at: new Date().toISOString(), path: [{ hop: 'client_to_controller', state: 'live', evidence: 'client heartbeat', clients: [{ node_id: 'node-1', hostname: 'mail-node-1', state: 'live', last_seen: new Date().toISOString(), age_seconds: 0, heartbeat_status: 'live' }], client_count: 1 }, { hop: 'controller_internal', state: 'live', evidence: 'controller health', observed_at: new Date().toISOString() }, { hop: 'controller_to_webapp', state: 'live', evidence: 'browser heartbeat', browser: { state: 'live', status: 'recorded', observed_at: new Date().toISOString(), age_seconds: 0, username: 'test-operator', evidence: 'heartbeat accepted' } }], canonical: { revision: 7, generated_at: new Date().toISOString(), schema_version: 'nli.sync.v1', target_interval_ms: 1000 } });
     if (path === '/api/v1/notifications') return fulfill({ notifications: [], count: 0, delivery_history: [], policy: {} });
-    if (path === '/api/v1/notifications/config') return fulfill({ policy: { enabled: true }, channels: { email: { state: 'configured_not_dispatched' }, pagerduty: { state: 'not_configured' } } });
+    if (path === '/api/v1/notifications/config' && request.method() === 'PUT') { const body=request.postDataJSON();notificationPolicySaves.push(body);return fulfill({policy:body,channels:{in_app:{enabled:true,state:'available',status:'available'},email:{enabled:body.channels.email.enabled,state:body.channels.email.enabled?'configured_not_dispatched':'not_configured',status:body.channels.email.enabled?'configured_not_dispatched':'not_configured'},pagerduty:{enabled:body.channels.pagerduty.enabled,state:body.channels.pagerduty.enabled?'configured_not_dispatched':'not_configured',status:body.channels.pagerduty.enabled?'configured_not_dispatched':'not_configured'}}}); }
+    if (path === '/api/v1/notifications/config') return fulfill({ policy: { channels: { in_app: { enabled: true }, email: { enabled: false, sender_env: 'NLI_NOTIFICATION_EMAIL_FROM', recipient_env: 'NLI_NOTIFICATION_EMAIL_RECIPIENTS' }, pagerduty: { enabled: false, secret_env: 'NLI_PAGERDUTY_ROUTING_KEY' } }, admin_fallback: true, recipients: ['admin'], events: ['approval','quarantine','sync','system','delivery','security'] }, channels: { in_app: { state: 'available', status: 'available' }, email: { state: 'not_configured', status: 'not_configured' }, pagerduty: { state: 'not_configured', status: 'not_configured' } } });
     if (path.match(/^\/api\/v1\/notifications\/audit-[^/]+$/) && request.method() === 'POST') return fulfill({ status: 'acknowledged' });
     if (path === '/api/v1/system') return fulfill({ version: '19.0.0', health: 'ok', storage: { mode: 'supabase', status: 'connected' }, security: { audit_chain: 'ok' } });
     return fulfill({ error: `Unmocked API: ${path}` }, 500);
   });
-  return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, assuranceRuns, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves, users, auditEvents };
+  return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, assuranceRuns, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves, users, auditEvents, notificationPolicySaves };
 }
 
 async function login(page) {
@@ -326,6 +328,16 @@ test('browser brand, Assurance selection, and account/audit timestamps stay expl
   await expect(page.getByText('Client → Controller')).toBeVisible();
   await page.getByTestId('nav-notifications').click();
   await expect(page.getByText('configured_not_dispatched')).toBeVisible();
+  await page.getByLabel('Enable email channel').check();
+  await page.getByLabel('Enable PagerDuty channel').check();
+  await page.getByLabel('Recipient usernames, comma separated').fill('admin, oncall-1');
+  await page.getByLabel('Email sender environment variable').fill('NLI_MAIL_FROM_ENV');
+  await page.getByLabel('Email recipient-list environment variable').fill('NLI_MAIL_TO_ENV');
+  await page.getByLabel('PagerDuty routing-key environment variable').fill('NLI_PD_KEY_ENV');
+  await page.getByRole('button', { name: 'Save notification policy' }).click();
+  await expect.poll(() => mock.notificationPolicySaves.length).toBe(1);
+  expect(mock.notificationPolicySaves[0]).toEqual({ channels: { in_app: { enabled: true }, email: { enabled: true, sender_env: 'NLI_MAIL_FROM_ENV', recipient_env: 'NLI_MAIL_TO_ENV' }, pagerduty: { enabled: true, secret_env: 'NLI_PD_KEY_ENV' } }, admin_fallback: true, recipients: ['admin','oncall-1'], events: ['approval','quarantine','sync','system','delivery','security'] });
+  expect(JSON.stringify(mock.notificationPolicySaves[0])).not.toMatch(/secret-value|routing-key-value/i);
   expect(mock.observed).toContain('POST /api/v1/communications/browser-heartbeat');
 });
 
