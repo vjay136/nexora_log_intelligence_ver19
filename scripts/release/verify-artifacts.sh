@@ -36,6 +36,7 @@ for file in "$webapp" "$client" "$alias" "$controller" "$web" \
   "$ARTIFACT_DIR/V19_CLOUDFLARE_TUNNEL.md" "$ARTIFACT_DIR/VERCEL_DEPLOYMENT.md" "$ARTIFACT_DIR/CLOUDFLARE_PAGES_DEPLOYMENT.md" "$ARTIFACT_DIR/vercel-preflight.mjs" \
   "$ARTIFACT_DIR/INSTALLATION_AND_CONFIGURATION.md" \
   "$ARTIFACT_DIR/WEBAPP_OPERATOR_AND_PARSER_GUIDE.md" \
+  "$ARTIFACT_DIR/V19_OPERATOR_DEMO_GUIDE.md" "$ARTIFACT_DIR/V19_PRODUCTION_ACCEPTANCE_TESTS.md" \
   "$ARTIFACT_DIR/PARSER_CATALOG.md" "$ARTIFACT_DIR/V19_MIGRATION_AND_ROLLBACK.md" "${operator_files[@]}"; do
   [[ -s $file ]] || fail "missing $(basename "$file")"
 done
@@ -181,7 +182,7 @@ assert_normalized_payload "$controller" /usr/sbin/nli-admin-reset "$ROOT/scripts
 assert_normalized_payload "$controller" /usr/lib/systemd/system/nli-controller-agent.service "$ROOT/packaging/systemd/nli-controller-agent.service"
 assert_normalized_payload "$controller" /usr/lib/systemd/system/nli-controller-bootstrap.service "$ROOT/packaging/systemd/nli-controller-bootstrap.service"
 
-for evidence in SHA256SUMS RELEASE_MANIFEST.json SBOM.spdx.json provenance.intoto.json SOURCE_BINARY_PROVENANCE.txt SOURCE_REVISION WEBVIEW_SHA256SUMS BENCHMARKS.txt INSTALLATION_AND_CONFIGURATION.md WEBAPP_OPERATOR_AND_PARSER_GUIDE.md PARSER_CATALOG.md SAMPLE_FIELD_ACCOUNTING.json RELEASE_ID; do
+for evidence in SHA256SUMS RELEASE_MANIFEST.json SBOM.spdx.json provenance.intoto.json SOURCE_BINARY_PROVENANCE.txt SOURCE_REVISION WEBVIEW_SHA256SUMS BENCHMARKS.txt INSTALLATION_AND_CONFIGURATION.md WEBAPP_OPERATOR_AND_PARSER_GUIDE.md V19_OPERATOR_DEMO_GUIDE.md V19_PRODUCTION_ACCEPTANCE_TESTS.md PARSER_CATALOG.md SAMPLE_FIELD_ACCOUNTING.json RELEASE_ID; do
   [[ -s "$ARTIFACT_DIR/$evidence" ]] || fail "missing $evidence"
 done
 python3 - "$ARTIFACT_DIR/SAMPLE_FIELD_ACCOUNTING.json" <<'PY'

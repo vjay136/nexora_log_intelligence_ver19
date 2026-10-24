@@ -2,7 +2,7 @@
 
 ## Release identity
 
-Ver19 is version `19.0.0-2`, Go module `nexora.local/nli-v19`, and WebView root `/usr/share/nli/webview_ver19`. The release archive, RPM aliases, web bundles, installer filenames, and CI release tag use the Ver19 identity. Historical Ver18 documentation and parser-catalog provenance are retained as records of the upgrade source.
+Ver19 is version `19.0.0-3`, Go module `nexora.local/nli-v19`, and WebView root `/usr/share/nli/webview_ver19`. The release archive, RPM aliases, web bundles, installer filenames, and CI release tag use the Ver19 identity. Historical Ver18 documentation and parser-catalog provenance are retained as records of the upgrade source.
 
 ## Upgrade path
 

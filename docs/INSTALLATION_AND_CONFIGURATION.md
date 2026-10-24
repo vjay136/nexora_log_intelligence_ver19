@@ -38,16 +38,16 @@ Existing logs are preserved. Missing files are created as `nli:nli` mode
 `0640`, and every bundled ParserPack is self-tested before services start.
 
 These scripts support Rocky Linux 9 and Rocky Linux 10 on x86_64. Download only
-the versioned `nli-v19.0.0-2-x86_64.tar.gz` archive and its adjacent `.sha256`
+the versioned `nli-v19.0.0-3-x86_64.tar.gz` archive and its adjacent `.sha256`
 file from the same GitHub release. Never copy loose release files into an old
 `~/nli-ver19` directory. Extract each release into a new versioned directory:
 
 ```bash
 mkdir -p ~/nli/releases
 cd ~/nli/releases
-sha256sum -c nli-v19.0.0-2-x86_64.tar.gz.sha256
-tar -xzf nli-v19.0.0-2-x86_64.tar.gz
-cd nli-v19.0.0-2-x86_64
+sha256sum -c nli-v19.0.0-3-x86_64.tar.gz.sha256
+tar -xzf nli-v19.0.0-3-x86_64.tar.gz
+cd nli-v19.0.0-3-x86_64
 cat RELEASE_ID
 sha256sum -c SHA256SUMS
 ```

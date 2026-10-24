@@ -61,7 +61,7 @@ verify_release_bundle() {
   for required in RELEASE_ID nli_client_ver19.rpm nli_clinet_ver19.rpm nli_controller_agent_ver19.rpm \
     webview_ver19.zip webapp_ver19.zip install-controller-ver19.sh install-client-ver19.sh \
     uninstall-controller-ver19.sh uninstall-client-ver19.sh INSTALLATION_AND_CONFIGURATION.md \
-    WEBAPP_OPERATOR_AND_PARSER_GUIDE.md PARSER_CATALOG.md \
+    WEBAPP_OPERATOR_AND_PARSER_GUIDE.md V19_OPERATOR_DEMO_GUIDE.md V19_PRODUCTION_ACCEPTANCE_TESTS.md PARSER_CATALOG.md \
     BENCHMARKS.txt SAMPLE_FIELD_ACCOUNTING.json; do
     awk -v name="$required" '$2==name && $1 ~ /^[0-9a-f]{64}$/ {found=1} END {exit !found}' "$checksum_file" ||
       fail "SHA256SUMS is incomplete: missing $required"

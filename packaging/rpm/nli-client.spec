@@ -108,6 +108,9 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/PARSER_CATALOG.md
 
 %changelog
+* Sat Oct 24 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-3
+- Prevent restart replay, add audited quarantine recovery, and expand live communication evidence.
+
 * Sat Oct 24 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-2
 - Publish bounded Linux host telemetry through authenticated client heartbeats.
 
