@@ -613,7 +613,7 @@ func (c *Client) applyParsers(ctx context.Context, payload json.RawMessage) (str
 	}
 	staging := c.cfg.ParserDir + ".staging"
 	_ = os.RemoveAll(staging)
-	if err := os.MkdirAll(staging, 0750); err != nil {
+	if err := prepareParserRuntimeDirectory(staging); err != nil {
 		return "", err
 	}
 	reg := registry.New()
@@ -814,7 +814,7 @@ func (c *Client) applyAssetBundle(ctx context.Context, data []byte) (string, err
 }
 
 func copyParserDirectory(source, destination string) error {
-	if err := os.MkdirAll(destination, 0750); err != nil {
+	if err := prepareParserRuntimeDirectory(destination); err != nil {
 		return err
 	}
 	entries, err := os.ReadDir(source)
@@ -837,6 +837,27 @@ func copyParserDirectory(source, destination string) error {
 		}
 	}
 	return nil
+}
+
+// prepareParserRuntimeDirectory builds the directory contract needed after an
+// atomic parser swap. The fleet-control service runs as root:nli, while the
+// parser agent runs as nli:nli. A staging directory created only with 0750 is
+// therefore readable by the agent but prevents it from creating its runtime
+// quarantine directory after the staging directory is renamed into place.
+// Pre-creating the bounded runtime subdirectory with group write access keeps
+// the atomic swap and least-privilege service split intact.
+func prepareParserRuntimeDirectory(path string) error {
+	if err := os.MkdirAll(path, 0o750); err != nil {
+		return err
+	}
+	if err := os.Chmod(path, 0o750); err != nil {
+		return err
+	}
+	quarantine := filepath.Join(path, "quarantine")
+	if err := os.MkdirAll(quarantine, 0o770); err != nil {
+		return err
+	}
+	return os.Chmod(quarantine, 0o770)
 }
 
 // writeSynchronizedAsset reapplies the final mode after creation so a

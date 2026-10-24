@@ -346,6 +346,13 @@ func TestParserAssetBundleSynchronizesEveryRuntimeAssetClass(t *testing.T) {
 	if _, err := parserpolicy.LoadParserPackBytes(installed); err != nil {
 		t.Fatalf("installed parser pack is not runtime-compatible: %v", err)
 	}
+	quarantineInfo, err := os.Stat(filepath.Join(client.cfg.ParserDir, "quarantine"))
+	if err != nil || !quarantineInfo.IsDir() {
+		t.Fatalf("atomic parser swap omitted the agent runtime quarantine directory: %v", err)
+	}
+	if runtime.GOOS != "windows" && quarantineInfo.Mode().Perm() != 0o770 {
+		t.Fatalf("runtime quarantine mode = %o, want 0770 for root:nli control to nli:nli agent handoff", quarantineInfo.Mode().Perm())
+	}
 }
 
 func TestClientRestoresConfigurationWhenRestartFails(t *testing.T) {
