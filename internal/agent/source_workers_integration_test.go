@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"nexora.local/nli-v19/internal/multiline"
 	"nexora.local/nli-v19/internal/output"
@@ -171,6 +172,72 @@ func TestHundredSourcesAppendRestartAndCheckpointExactlyOnce(t *testing.T) {
 		if state.Offset != info.Size() || state.Line != firstBatch+appendedBatch {
 			t.Fatalf("source %d checkpoint = offset %d line %d, want %d and %d", index, state.Offset, state.Line, info.Size(), firstBatch+appendedBatch)
 		}
+	}
+}
+
+func TestCompletedMultilinePrefixIsCheckpointedWhileNextRecordIsPending(t *testing.T) {
+	root := t.TempDir()
+	inputPath := filepath.Join(root, "auto.log")
+	first := `{"id":"first","message":"completed"}` + "\n"
+	second := `{"id":"second","message":"pending until timeout"}` + "\n"
+	if err := os.WriteFile(inputPath, []byte(first+second), 0600); err != nil {
+		t.Fatal(err)
+	}
+	stateDir := filepath.Join(root, "state")
+	outputPath := filepath.Join(root, "auto.jsonl")
+	cfg := Config{
+		Version: 2, Inputs: []InputConfig{{
+			Path: inputPath, Service: "auto",
+			Multiline: multiline.Config{Enabled: true, FlushTimeoutMS: 4000, Rules: []string{"generic_continuation"}},
+		}},
+		StateDir: stateDir, PollMS: 10, SourceWorkers: 1, DisableV5Parser: true,
+		Outputs:          []output.Config{{Type: "file", Path: outputPath, Routes: []string{"normal"}}},
+		TelemetryOutputs: []output.Config{{Type: "discard", Routes: []string{"telemetry"}}},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() { result <- Run(ctx, cfg, false) }()
+	t.Cleanup(cancel)
+
+	checkpointPath := filepath.Join(stateDir, "offsets.json")
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		data, err := os.ReadFile(checkpointPath)
+		if err == nil {
+			var checkpoints map[string]cursor
+			if json.Unmarshal(data, &checkpoints) == nil && checkpoints[inputPath].Offset == int64(len(first)) {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			cancel()
+			if runErr := <-result; runErr != nil {
+				t.Fatalf("agent stopped before checkpoint: %v", runErr)
+			}
+			t.Fatalf("completed prefix was not checkpointed while the trailing event was pending")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	cancel()
+	if err := <-result; err != nil {
+		t.Fatal(err)
+	}
+	readRecords := func() int {
+		t.Helper()
+		data, err := os.ReadFile(outputPath)
+		if err != nil {			t.Fatal(err)
+		}
+		return len(strings.Split(strings.TrimSpace(string(data)), "\n"))
+	}
+	if got := readRecords(); got != 2 {
+		t.Fatalf("normalized output has %d records after pending flush, want 2", got)
+	}
+	if err := Run(context.Background(), cfg, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := readRecords(); got != 2 {
+		t.Fatalf("restarting replayed an acknowledged event: output has %d rows, want 2", got)
 	}
 }
 
