@@ -117,6 +117,8 @@ The notification bell shows in-session progress, completion, and error messages 
 6. In **Parser Fleet Sync**, verify desired/applied hashes and propose rollout to selected or all eligible clients. Complete the separate rollout approval, then verify client acknowledgements and hashes before replay. Replay only the exact record IDs on their originating client; the controller rejects excluded, resolved, in-flight, dead-letter, or otherwise ineligible records. Client outcomes remain pending until per-record parser confirmation arrives.
 7. Records remain queued when parsing or customer-output delivery fails. Replay uses bounded 1, 5, 15, then 60 minute backoff and stops after five total attempts; the fifth unresolved result becomes `dead_letter` for manual attention. A controller/WebApp telemetry outage does not undo a successful customer delivery; the result marks telemetry separately.
 
+The complete normal and recovery execution order, including the full meanings of NHLE, NURSF, NAPI, NAL, NUPIRE, and EGPE, is documented in [Ver19 subsystem names and execution order](V19_SUBSYSTEM_ORCHESTRATION.md). The key boundary is that NHLE processes ordinary records, while NAPI, NAL, NUPIRE, and EGPE run only through explicit evidence and recovery workflows.
+
 ## 6. Users, roles and audit
 
 In **Users, RBAC & Audit**, an authorized admin can create a user with username, email, role, and initial password, review role permissions/audit records, and deactivate an account. The UI's delete operation deactivates rather than erases the account. Access is enforced at the controller API as well as hidden/disabled in the UI; a visible page is not proof that a write is authorized.

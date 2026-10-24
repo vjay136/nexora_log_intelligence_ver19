@@ -151,7 +151,7 @@ test('all workspaces render and audit is visible', async ({ page }) => {
   expect(fleetSyncRequests.length).toBeGreaterThanOrEqual(1);
   expect(fleetSyncRequests.length).toBeLessThanOrEqual(6);
   expect(errors).toEqual([]);
-  await page.getByRole('button', { name: 'Notifications' }).click();
+  await page.locator('#notification-bell').click();
   await expect(page.getByText('Notifications', { exact: true })).toBeVisible();
 });
 
@@ -775,7 +775,7 @@ test('Quarantine queue exposes exact raw access, exports and auditable replay co
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download exact raw' }).click();
   expect((await download).suggestedFilename()).toBe('nli-quarantine-q-1.log');
-  await page.getByRole('button', { name: 'Diagnose in Assurance' }).click();
+  await page.getByRole('button', { name: 'View evidence & diagnose' }).click();
   await expect(page.getByRole('heading', { name: 'Assurance Lab' })).toBeVisible();
   await expect(page.getByTestId('assurance-raw')).toHaveValue('exact raw source line');
   await page.getByTestId('nav-unknowns').click();
