@@ -231,9 +231,21 @@ type outputRequest struct {
 }
 
 type destinationWorker struct {
-	queue  chan outputRequest
-	done   chan error
-	writer Writer
+	queue    chan outputRequest
+	done     chan error
+	writer   Writer
+	required bool
+}
+
+func (w *destinationWorker) deliveryResult(err error) error {
+	var deliveryErr *DeliveryError
+	if err != nil && !w.required && errors.As(err, &deliveryErr) && deliveryErr.Accounted {
+		// Optional remote destinations acknowledge a durable hash-only failure
+		// receipt. Do not replay successful local destinations solely because an
+		// optional sink is unavailable; the receipt remains visible to operators.
+		return nil
+	}
+	return err
 }
 
 func (w *destinationWorker) run() {
@@ -241,15 +253,15 @@ func (w *destinationWorker) run() {
 	for request := range w.queue {
 		if request.barrier != nil {
 			if flusher, ok := w.writer.(interface{ Flush() error }); ok {
-				failures = append(failures, flusher.Flush())
+				failures = append(failures, w.deliveryResult(flusher.Flush()))
 			}
 			request.barrier <- errors.Join(failures...)
 			failures = nil
 			continue
 		}
-		failures = append(failures, w.writer.Write(request.envelope, request.route))
+		failures = append(failures, w.deliveryResult(w.writer.Write(request.envelope, request.route)))
 	}
-	w.done <- errors.Join(errors.Join(failures...), w.writer.Close())
+	w.done <- errors.Join(errors.Join(failures...), w.deliveryResult(w.writer.Close()))
 }
 
 // NewRouter creates a router from a list of output configs.
@@ -305,7 +317,7 @@ func NewRouter(configs []Config) (*Router, error) {
 		if capacity <= 0 {
 			capacity = 256
 		}
-		worker := &destinationWorker{queue: make(chan outputRequest, capacity), done: make(chan error, 1), writer: writer}
+		worker := &destinationWorker{queue: make(chan outputRequest, capacity), done: make(chan error, 1), writer: writer, required: cfg.Required}
 		router.workers = append(router.workers, worker)
 		go worker.run()
 	}

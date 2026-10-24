@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	notificationConfigCollection  = "notification-config"
-	notificationAckCollection     = "notification-acks"
+	notificationConfigCollection = "notification-config"
+	notificationAckCollection    = "notification-acks"
 )
 
 var envNamePattern = regexp.MustCompile(`^[A-Z][A-Z0-9_]{1,127}$`)
@@ -94,12 +94,12 @@ type notificationChannelConfig struct {
 }
 
 type notificationPolicy struct {
-	Channels       map[string]notificationChannelConfig `json:"channels"`
-	AdminFallback  bool                                 `json:"admin_fallback"`
-	Recipients     []string                             `json:"recipients"`
-	Events         []string                             `json:"events"`
-	UpdatedBy      string                               `json:"updated_by,omitempty"`
-	UpdatedAt      time.Time                            `json:"updated_at,omitempty"`
+	Channels      map[string]notificationChannelConfig `json:"channels"`
+	AdminFallback bool                                 `json:"admin_fallback"`
+	Recipients    []string                             `json:"recipients"`
+	Events        []string                             `json:"events"`
+	UpdatedBy     string                               `json:"updated_by,omitempty"`
+	UpdatedAt     time.Time                            `json:"updated_at,omitempty"`
 }
 
 func defaultNotificationPolicy() notificationPolicy {
@@ -163,7 +163,10 @@ func (s *Server) handleNotificationFeed(w http.ResponseWriter, r *http.Request) 
 	acknowledged := map[uint64]bool{}
 	acks, _ := s.metadata.List(r.Context(), notificationAckCollection, metastore.Query{Limit: 1000})
 	for _, ack := range acks {
-		var payload struct { Username string `json:"username"`; Sequence uint64 `json:"sequence"` }
+		var payload struct {
+			Username string `json:"username"`
+			Sequence uint64 `json:"sequence"`
+		}
 		if json.Unmarshal(ack.Payload, &payload) == nil && payload.Username == principal.Username {
 			acknowledged[payload.Sequence] = true
 		}
@@ -239,28 +242,66 @@ func (s *Server) notificationChannelStatus(policy notificationPolicy) map[string
 		status := "disabled"
 		switch name {
 		case "in_app":
-			if channel.Enabled { status = "available" }
+			if channel.Enabled {
+				status = "available"
+			}
 		case "email":
-			if channel.Enabled && envConfigured(channel.SenderEnv) && envConfigured(channel.RecipientEnv) { status = "configured_not_dispatched" } else if channel.Enabled { status = "configuration_incomplete" } else { status = "not_configured" }
+			if channel.Enabled && envConfigured(channel.SenderEnv) && envConfigured(channel.RecipientEnv) {
+				status = "configured_not_dispatched"
+			} else if channel.Enabled {
+				status = "configuration_incomplete"
+			} else {
+				status = "not_configured"
+			}
 		case "pagerduty":
-			if channel.Enabled && envConfigured(channel.SecretEnv) { status = "configured_not_dispatched" } else if channel.Enabled { status = "configuration_incomplete" } else { status = "not_configured" }
+			if channel.Enabled && envConfigured(channel.SecretEnv) {
+				status = "configured_not_dispatched"
+			} else if channel.Enabled {
+				status = "configuration_incomplete"
+			} else {
+				status = "not_configured"
+			}
 		default:
 			status = "unsupported"
 		}
-		result[name] = map[string]any{"enabled": channel.Enabled, "status": status, "state": status, "delivery": "external dispatch adapter is not present in this release"}
+		delivery := "available in the authenticated in-app notification feed"
+		if name != "in_app" {
+			delivery = "external dispatch adapter is not present in this release"
+		}
+		result[name] = map[string]any{"enabled": channel.Enabled, "status": status, "state": status, "delivery": delivery}
 	}
 	return result
 }
 
 func validateNotificationPolicy(policy notificationPolicy) bool {
-	if len(policy.Recipients) > 100 || len(policy.Events) > 20 || len(policy.Channels) > 3 { return false }
-	for _, recipient := range policy.Recipients { if len(recipient) > 128 || strings.TrimSpace(recipient) == "" { return false } }
-	for _, event := range policy.Events { if !oneOf(event, "approval", "quarantine", "sync", "system", "delivery", "security") { return false } }
+	if len(policy.Recipients) > 100 || len(policy.Events) > 20 || len(policy.Channels) > 3 {
+		return false
+	}
+	for _, recipient := range policy.Recipients {
+		if len(recipient) > 128 || strings.TrimSpace(recipient) == "" {
+			return false
+		}
+	}
+	for _, event := range policy.Events {
+		if !oneOf(event, "approval", "quarantine", "sync", "system", "delivery", "security") {
+			return false
+		}
+	}
 	for name, channel := range policy.Channels {
-		if !oneOf(name, "in_app", "email", "pagerduty") { return false }
-		for _, value := range []string{channel.SecretEnv, channel.SenderEnv, channel.RecipientEnv} { if value != "" && !envNamePattern.MatchString(value) { return false } }
-		if len(channel.Endpoint) > 512 { return false }
-		if name == "pagerduty" && channel.Endpoint != "" && channel.Endpoint != "https://events.pagerduty.com/v2/enqueue" { return false }
+		if !oneOf(name, "in_app", "email", "pagerduty") {
+			return false
+		}
+		for _, value := range []string{channel.SecretEnv, channel.SenderEnv, channel.RecipientEnv} {
+			if value != "" && !envNamePattern.MatchString(value) {
+				return false
+			}
+		}
+		if len(channel.Endpoint) > 512 {
+			return false
+		}
+		if name == "pagerduty" && channel.Endpoint != "" && channel.Endpoint != "https://events.pagerduty.com/v2/enqueue" {
+			return false
+		}
 	}
 	return policy.Channels["in_app"].Enabled
 }
@@ -268,24 +309,44 @@ func validateNotificationPolicy(policy notificationPolicy) bool {
 func classifyNotificationEvent(event auditlog.Event) (string, string, bool) {
 	action := strings.ToLower(event.Action)
 	category := "system"
-	if strings.Contains(action, "approval") || strings.Contains(action, "rollout.approve") { category = "approval" }
-	if strings.Contains(action, "quarantine") || strings.Contains(action, "reprocess") { category = "quarantine" }
-	if strings.Contains(action, "sync") || strings.Contains(action, "heartbeat") || strings.Contains(action, "telemetry") { category = "sync" }
-	if strings.Contains(action, "delivery") || strings.Contains(action, "endpoint") { category = "delivery" }
-	if strings.Contains(action, "login") || strings.Contains(action, "auth") || strings.Contains(action, "user.") { category = "security" }
-	if event.Outcome == "failure" || event.Outcome == "partial_failure" || event.Outcome == "local_created_sync_failed" { return category, "critical", true }
-	if category != "system" || event.Outcome != "success" { return category, "warning", true }
+	if strings.Contains(action, "approval") || strings.Contains(action, "rollout.approve") {
+		category = "approval"
+	}
+	if strings.Contains(action, "quarantine") || strings.Contains(action, "reprocess") {
+		category = "quarantine"
+	}
+	if strings.Contains(action, "sync") || strings.Contains(action, "heartbeat") || strings.Contains(action, "telemetry") {
+		category = "sync"
+	}
+	if strings.Contains(action, "delivery") || strings.Contains(action, "endpoint") {
+		category = "delivery"
+	}
+	if strings.Contains(action, "login") || strings.Contains(action, "auth") || strings.Contains(action, "user.") {
+		category = "security"
+	}
+	if event.Outcome == "failure" || event.Outcome == "partial_failure" || event.Outcome == "local_created_sync_failed" {
+		return category, "critical", true
+	}
+	if category != "system" || event.Outcome != "success" {
+		return category, "warning", true
+	}
 	return "", "", false
 }
 
 func notificationTitle(event auditlog.Event, category string) string {
 	verb := strings.ReplaceAll(strings.ReplaceAll(event.Action, ".", " "), "_", " ")
-	if event.Outcome == "failure" || event.Outcome == "partial_failure" { return strings.Title(category) + " issue: " + verb }
+	if event.Outcome == "failure" || event.Outcome == "partial_failure" {
+		return strings.Title(category) + " issue: " + verb
+	}
 	return strings.Title(category) + " activity: " + verb
 }
 
 func policyWatches(policy notificationPolicy, category string) bool {
-	for _, event := range policy.Events { if event == category { return true } }
+	for _, event := range policy.Events {
+		if event == category {
+			return true
+		}
+	}
 	return false
 }
 
@@ -300,20 +361,47 @@ func notificationRecipient(policy notificationPolicy, username, role, severity s
 
 func enabledChannelNames(policy notificationPolicy) []string {
 	values := make([]string, 0, len(policy.Channels))
-	for name, channel := range policy.Channels { if channel.Enabled { values = append(values, name) } }
+	for name, channel := range policy.Channels {
+		if channel.Enabled {
+			values = append(values, name)
+		}
+	}
 	return values
 }
 
 func envConfigured(name string) bool { return name != "" && strings.TrimSpace(os.Getenv(name)) != "" }
 
 func aggregateClientState(clients []map[string]any) string {
-	if len(clients) == 0 { return "idle_no_registered_clients" }
-	for _, client := range clients { if client["state"] == "live" { return "live" } }
+	if len(clients) == 0 {
+		return "idle_no_registered_clients"
+	}
+	for _, client := range clients {
+		if client["state"] == "live" {
+			return "live"
+		}
+	}
 	return "stale"
 }
 
-func nullableTime(value time.Time) any { if value.IsZero() { return nil }; return value }
+func nullableTime(value time.Time) any {
+	if value.IsZero() {
+		return nil
+	}
+	return value
+}
 
-func maxFloat(value, floor float64) float64 { if value < floor { return floor }; return value }
+func maxFloat(value, floor float64) float64 {
+	if value < floor {
+		return floor
+	}
+	return value
+}
 
-func oneOf(value string, options ...string) bool { for _, option := range options { if value == option { return true } }; return false }
+func oneOf(value string, options ...string) bool {
+	for _, option := range options {
+		if value == option {
+			return true
+		}
+	}
+	return false
+}

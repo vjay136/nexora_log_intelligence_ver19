@@ -90,7 +90,15 @@ func (w *TelemetryWriter) Write(telemetryData []byte, route string) error {
 		req.Header.Set("Authorization", "Bearer "+token)
 		return req, nil
 	}); err != nil {
-		return fmt.Errorf("telemetry post failed: %w", err)
+		deliveryErr := fmt.Errorf("telemetry post failed: %w", err)
+		if w.cfg.FallbackPath != "" {
+			if spoolErr := spoolFailedBatch(w.cfg, [][]byte{payload}); spoolErr == nil {
+				return &DeliveryError{Destination: "telemetry", Accounted: true, Cause: deliveryErr}
+			} else {
+				deliveryErr = fmt.Errorf("%v; fallback accounting: %w", deliveryErr, spoolErr)
+			}
+		}
+		return &DeliveryError{Destination: "telemetry", Cause: deliveryErr}
 	}
 
 	return nil

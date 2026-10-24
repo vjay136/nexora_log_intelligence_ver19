@@ -194,6 +194,44 @@ func TestRemoteFailureDoesNotAdvanceInputCheckpoint(t *testing.T) {
 	}
 }
 
+func TestAccountedOptionalFailureDoesNotReplaySuccessfulLocalOutput(t *testing.T) {
+	root := t.TempDir()
+	inputPath := filepath.Join(root, "input.log")
+	outputPath := filepath.Join(root, "normalized.jsonl")
+	spoolPath := filepath.Join(root, "loki-failures.jsonl")
+	if err := os.WriteFile(inputPath, []byte("{\"level\":\"info\",\"message\":\"emit once\"}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	cfg := Config{
+		Inputs: []InputConfig{{Path: inputPath, Service: "auto"}}, StateDir: filepath.Join(root, "state"), PollMS: 50,
+		DisableV5Parser: true, EnableLegacyRouting: true,
+		Outputs: []output.Config{
+			{Type: "file", Path: outputPath, Routes: []string{"normal", "warning"}},
+			{Type: "loki", URL: server.URL, Routes: []string{"normal", "warning"}, RetryMax: 1, RetryBackoffMS: 1, FallbackPath: spoolPath},
+		},
+	}
+	if err := Run(context.Background(), cfg, true); err != nil {
+		t.Fatalf("accounted optional failure stopped ingestion: %v", err)
+	}
+	if err := Run(context.Background(), cfg, true); err != nil {
+		t.Fatalf("restart after accounted optional failure: %v", err)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows := strings.Count(strings.TrimSpace(string(data)), "\n") + 1; rows != 1 {
+		t.Fatalf("successful local output replayed after optional sink failure: rows=%d data=%s", rows, data)
+	}
+	if receipt, err := os.ReadFile(spoolPath); err != nil || len(receipt) == 0 {
+		t.Fatalf("optional failure receipt missing: %s %v", receipt, err)
+	}
+}
+
 func TestAgentOutputInitializationErrorsAreReturned(t *testing.T) {
 	root := t.TempDir()
 	inputPath := filepath.Join(root, "input.log")

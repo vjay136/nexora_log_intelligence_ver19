@@ -42,13 +42,13 @@ func TestNotificationPolicyAndAuditFeed(t *testing.T) {
 	f := newAPIFixture(t)
 	policy := map[string]any{
 		"channels": map[string]any{
-			"in_app": map[string]any{"enabled": true},
-			"email": map[string]any{"enabled": true, "sender_env": "NLI_SMTP_FROM", "recipient_env": "NLI_SMTP_TO"},
+			"in_app":    map[string]any{"enabled": true},
+			"email":     map[string]any{"enabled": true, "sender_env": "NLI_SMTP_FROM", "recipient_env": "NLI_SMTP_TO"},
 			"pagerduty": map[string]any{"enabled": true, "secret_env": "NLI_PAGERDUTY_KEY", "endpoint": "https://events.pagerduty.com/v2/enqueue"},
 		},
 		"admin_fallback": true,
-		"recipients": []string{},
-		"events": []string{"approval", "quarantine", "sync", "system", "delivery", "security"},
+		"recipients":     []string{},
+		"events":         []string{"approval", "quarantine", "sync", "system", "delivery", "security"},
 	}
 	response, body := f.request(http.MethodPut, "/api/v1/notifications/config", policy)
 	if response.StatusCode != http.StatusOK {
@@ -61,8 +61,15 @@ func TestNotificationPolicyAndAuditFeed(t *testing.T) {
 	if response.StatusCode != http.StatusOK || !json.Valid(body) {
 		t.Fatalf("read notification policy %d: %s", response.StatusCode, body)
 	}
-	if !strings.Contains(string(body), "not dispatched") {
-		t.Fatalf("external channels must not claim delivery without sender: %s", body)
+	if !strings.Contains(string(body), "configuration_incomplete") {
+		t.Fatalf("missing environment values must remain visibly incomplete: %s", body)
+	}
+	t.Setenv("NLI_SMTP_FROM", "nli@example.test")
+	t.Setenv("NLI_SMTP_TO", "ops@example.test")
+	t.Setenv("NLI_PAGERDUTY_KEY", "test-routing-key")
+	response, body = f.request(http.MethodGet, "/api/v1/notifications/config", nil)
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "configured_not_dispatched") {
+		t.Fatalf("configured external channels must not claim delivery without an adapter: %s", body)
 	}
 	_, err := f.server.audit.Append(auditEventForTest("quarantine.reprocess", "failure"))
 	if err != nil {

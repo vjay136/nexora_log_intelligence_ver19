@@ -226,7 +226,8 @@ func TestCompletedMultilinePrefixIsCheckpointedWhileNextRecordIsPending(t *testi
 	readRecords := func() int {
 		t.Helper()
 		data, err := os.ReadFile(outputPath)
-		if err != nil {			t.Fatal(err)
+		if err != nil {
+			t.Fatal(err)
 		}
 		return len(strings.Split(strings.TrimSpace(string(data)), "\n"))
 	}

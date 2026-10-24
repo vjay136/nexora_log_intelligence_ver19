@@ -773,16 +773,29 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 	// for the multiline timeout.
 	persistCursor := func(t *tail, state cursor) error {
 		if v5Router != nil {
-			if err := v5Router.Flush(); err != nil {
+			if err := v5Router.FlushCustomer(); err != nil {
 				return err
 			}
 		} else if err := legacyRouter.Flush(); err != nil {
 			return err
 		}
 		runtimeMu.Lock()
-		defer runtimeMu.Unlock()
 		states[t.input.Path] = state
-		return checkpoint(statePath, states)
+		checkpointErr := checkpoint(statePath, states)
+		runtimeMu.Unlock()
+		if checkpointErr != nil {
+			return checkpointErr
+		}
+		if v5Router != nil {
+			// Parser telemetry is an independent observability channel. A temporary
+			// controller outage must not replay already-durable customer records.
+			// The generated production configuration also writes a hash-only
+			// delivery-failure receipt for this optional destination.
+			if err := v5Router.FlushTelemetry(); err != nil {
+				fmt.Fprintf(os.Stderr, "nli: parser telemetry delivery pending: %v\n", err)
+			}
+		}
+		return nil
 	}
 	commit := func(t *tail) error {
 		if t.ml.Pending() {

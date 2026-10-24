@@ -321,12 +321,8 @@ func TestRouterWritesOnlyMatchingFamily(t *testing.T) {
 	if err != nil || !strings.Contains(string(imapData), `"service":"app"`) {
 		t.Fatalf("imap output missing routed payload: %q, %v", imapData, err)
 	}
-	popData, err := os.ReadFile(popPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(popData) != 0 {
-		t.Fatalf("pop output received an imap event: %q", popData)
+	if popData, err := os.ReadFile(popPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unused pop destination must stay absent, data=%q err=%v", popData, err)
 	}
 }
 

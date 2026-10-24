@@ -355,6 +355,7 @@ telemetry = {
     "type": "telemetry", "routes": ["telemetry"], "url": controller_url,
     "node_id_file": "/var/lib/nli-control-client/install.id",
     "token_file": "/var/lib/nli-control-client/node.token",
+    "fallback_path": "/var/lib/nli/spool/controller-telemetry.jsonl",
     "retry_max": 8, "retry_backoff_ms": 200,
 }
 ca_file = str(control.get("ca_file", "")).strip()
