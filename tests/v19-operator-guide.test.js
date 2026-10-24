@@ -19,3 +19,8 @@ test('V19 operator guide inventories every current primary navigation route', as
     assert.ok(guide.includes(label), `guide missing significant workspace section ${label}`);
   }
 });
+
+test('shared time formatter hides zero and pre-2000 timestamps', async () => {
+  const app = await readFile(resolve(root, 'web/app.js'), 'utf8');
+  assert.match(app, /date\.getUTCFullYear\(\)\s*<\s*2000/);
+});

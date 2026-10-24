@@ -711,13 +711,13 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	action := parts[1]
-	p := s.authorize(w, r, middleware.PermissionManageParsers)
-	if action == "approve" {
-		p = s.authorize(w, r, middleware.PermissionReviewParsers)
+	permission := middleware.PermissionManageParsers
+	if action == "approve" || action == "reject" {
+		permission = middleware.PermissionReviewParsers
+	} else if action == "publish" {
+		permission = middleware.PermissionTriggerRollout
 	}
-	if action == "publish" {
-		p = s.authorize(w, r, middleware.PermissionTriggerRollout)
-	}
+	p := s.authorize(w, r, permission)
 	if p == nil {
 		return
 	}
@@ -732,6 +732,15 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 	}
 	var body map[string]any
 	_ = json.Unmarshal(doc.Payload, &body)
+	var reviewRequest struct {
+		Reason string `json:"reason"`
+	}
+	if action == "reject" {
+		if decodeJSON(r, &reviewRequest, 4<<10) != nil || strings.TrimSpace(reviewRequest.Reason) == "" || len(strings.TrimSpace(reviewRequest.Reason)) > 512 {
+			jsonError(w, "rejection reason must contain 1..512 characters", 400)
+			return
+		}
+	}
 	switch action {
 	case "validate":
 		var cases []assuranceRequest
@@ -772,6 +781,18 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 		}
 		body["review_state"] = "approved"
 		body["reviewed_by"] = p.Username
+	case "reject":
+		if doc.State != "in_review" {
+			jsonError(w, "parser is not awaiting review", 409)
+			return
+		}
+		if doc.CreatedBy == p.Username {
+			jsonError(w, "creator cannot reject their own parser", 409)
+			return
+		}
+		body["review_state"] = "rejected"
+		body["reviewed_by"] = p.Username
+		body["review_reason"] = strings.TrimSpace(reviewRequest.Reason)
 	case "publish":
 		if doc.State != "approved" {
 			jsonError(w, "only approved parsers can be published", 409)

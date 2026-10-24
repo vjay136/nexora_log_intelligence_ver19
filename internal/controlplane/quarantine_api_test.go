@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"nexora.local/nli-v19/internal/fleet"
 	metastore "nexora.local/nli-v19/internal/store"
 	"nexora.local/nli-v19/telemetry"
 	"os"
@@ -110,6 +111,61 @@ func TestQuarantineAnalyzeUsesExactRetainedRawAndDoesNotResolveOrPublish(t *test
 	historyResponse, historyData := f.request(http.MethodGet, "/api/v1/quarantine/history", nil)
 	if historyResponse.StatusCode != http.StatusOK || !strings.Contains(string(historyData), "failure_analyzed") {
 		t.Fatalf("analysis history missing: %d %s", historyResponse.StatusCode, historyData)
+	}
+}
+
+func TestQuarantineDispositionAndRawPurgeAreAuditedAndReplaySafe(t *testing.T) {
+	f := newAPIFixture(t)
+	enableTestQuarantineRetention(t, f)
+	f.server.fleet.Register(&fleet.Node{ID: "node-1", Hostname: "node-1"})
+	if err := f.server.storeQuarantineRecord(context.Background(), quarantineRecordInput{ID: "q-disposition", NodeID: "node-1", Service: "mail", Raw: "secret-bearing source line", Status: "waiting"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.server.auth.CreateUser("admin", "quarantine-viewer", "q-viewer@example.test", "viewer", "Viewer-password-12345!"); err != nil {
+		t.Fatal(err)
+	}
+	f.login("quarantine-viewer", "Viewer-password-12345!")
+	f.refreshCSRF()
+	response, data := f.request(http.MethodPost, "/api/v1/quarantine/records/q-disposition/exclude", map[string]any{"reason": "not authorized"})
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("viewer exclusion status=%d: %s", response.StatusCode, data)
+	}
+	response, data = f.request(http.MethodDelete, "/api/v1/quarantine/records/q-disposition/raw", map[string]any{})
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("viewer raw deletion status=%d: %s", response.StatusCode, data)
+	}
+	f.login("admin", "Admin-password-12345!")
+	f.refreshCSRF()
+	response, data = f.request(http.MethodPost, "/api/v1/quarantine/records/q-disposition/exclude", map[string]any{"reason": "confirmed duplicate source"})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("exclude %d: %s", response.StatusCode, data)
+	}
+	got, _, err := f.server.getQuarantineRecord(context.Background(), "q-disposition")
+	if err != nil || got.Status != "excluded" || got.ExcludeReason != "confirmed duplicate source" || !got.RawAvailable {
+		t.Fatalf("exclude should preserve metadata and evidence: record=%+v err=%v", got, err)
+	}
+	response, data = f.request(http.MethodPost, "/api/v1/quarantine/reprocess", map[string]any{"record_ids": []string{"q-disposition"}, "node_id": "node-1"})
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("excluded record replay status=%d: %s", response.StatusCode, data)
+	}
+	response, data = f.request(http.MethodPost, "/api/v1/quarantine/records/q-disposition/include", map[string]any{})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("include %d: %s", response.StatusCode, data)
+	}
+	response, data = f.request(http.MethodDelete, "/api/v1/quarantine/records/q-disposition/raw", map[string]any{})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("delete raw %d: %s", response.StatusCode, data)
+	}
+	got, _, err = f.server.getQuarantineRecord(context.Background(), "q-disposition")
+	if err != nil || got.RawAvailable {
+		t.Fatalf("raw evidence should be deleted while metadata remains: record=%+v err=%v", got, err)
+	}
+	if _, err := f.server.quarantine.store.Get(context.Background(), quarantineRawCollection, "q-disposition", 0); !os.IsNotExist(err) {
+		t.Fatalf("raw evidence remains after delete: %v", err)
+	}
+	response, data = f.request(http.MethodGet, "/api/v1/quarantine/history?limit=10", nil)
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(data), "record_excluded") || !strings.Contains(string(data), "record_included") || !strings.Contains(string(data), "raw_evidence_deleted") {
+		t.Fatalf("mutation history incomplete: %d %s", response.StatusCode, data)
 	}
 }
 

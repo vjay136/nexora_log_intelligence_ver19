@@ -59,6 +59,9 @@ type quarantineRecord struct {
 	SourceLine     uint64    `json:"source_line,omitempty"`
 	RawAvailable   bool      `json:"raw_available"`
 	RawExpiresAt   time.Time `json:"raw_expires_at,omitempty"`
+	ExcludedAt     time.Time `json:"excluded_at,omitempty"`
+	ExcludedBy     string    `json:"excluded_by,omitempty"`
+	ExcludeReason  string    `json:"exclude_reason,omitempty"`
 }
 
 type sealedQuarantineRaw struct {
@@ -471,8 +474,20 @@ func queryBound(r *http.Request, key string, fallback, min, max int) (int, error
 func (s *Server) handleQuarantineRecord(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/v1/quarantine/records/"), "/")
 	parts := strings.Split(path, "/")
+	if len(parts) == 2 && parts[1] == "exclude" && r.Method == http.MethodPost {
+		s.handleQuarantineDisposition(w, r, parts[0], true)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "include" && r.Method == http.MethodPost {
+		s.handleQuarantineDisposition(w, r, parts[0], false)
+		return
+	}
 	if len(parts) == 2 && parts[1] == "analyze" && r.Method == http.MethodPost {
 		s.handleQuarantineAnalyze(w, r, parts[0])
+		return
+	}
+	if len(parts) == 2 && parts[1] == "raw" && r.Method == http.MethodDelete {
+		s.handleQuarantineRawDelete(w, r, parts[0])
 		return
 	}
 	if len(parts) != 2 || parts[1] != "raw" || r.Method != http.MethodGet {
@@ -520,6 +535,105 @@ func (s *Server) handleQuarantineRecord(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(plain)
+}
+
+// Exclusion is a soft disposition: the controller keeps record metadata and
+// retained evidence for audit/review. Raw deletion is a separate, irreversible
+// action and requires the stronger logs:write permission.
+func (s *Server) handleQuarantineDisposition(w http.ResponseWriter, r *http.Request, rawID string, exclude bool) {
+	principal, err := s.security.AuthorizeRequest(r, middleware.PermissionWriteLogs)
+	if err != nil {
+		jsonError(w, "logs:write permission required", http.StatusForbidden)
+		return
+	}
+	id := safeID(rawID)
+	if id == "" {
+		jsonError(w, "invalid record ID", http.StatusBadRequest)
+		return
+	}
+	record, doc, err := s.getQuarantineRecord(r.Context(), id)
+	if err != nil {
+		jsonError(w, "quarantine record not found", http.StatusNotFound)
+		return
+	}
+	var reason string
+	if exclude {
+		var request struct {
+			Reason string `json:"reason"`
+		}
+		if decodeJSON(r, &request, 4<<10) != nil {
+			jsonError(w, "a short exclusion reason is required", http.StatusBadRequest)
+			return
+		}
+		reason = strings.TrimSpace(request.Reason)
+		if len(reason) == 0 || len(reason) > 256 {
+			jsonError(w, "exclusion reason must contain 1..256 characters", http.StatusBadRequest)
+			return
+		}
+		if record.Status == "resolved" || record.Status == "reprocessing" {
+			jsonError(w, "resolved or reprocessing records cannot be excluded", http.StatusConflict)
+			return
+		}
+		if record.Status == "excluded" {
+			jsonError(w, "record is already excluded", http.StatusConflict)
+			return
+		}
+		record.Status, record.ExcludedAt, record.ExcludedBy, record.ExcludeReason = "excluded", time.Now().UTC(), principal.Username, reason
+	} else {
+		if record.Status != "excluded" {
+			jsonError(w, "only excluded records can be returned to the queue", http.StatusConflict)
+			return
+		}
+		record.Status, record.ExcludedAt, record.ExcludedBy, record.ExcludeReason = "waiting", time.Time{}, "", ""
+		reason = "returned to waiting queue"
+	}
+	if err := s.putQuarantineRecord(r.Context(), record, doc.CreatedBy); err != nil {
+		jsonError(w, "quarantine disposition could not be saved", http.StatusServiceUnavailable)
+		return
+	}
+	action := "excluded"
+	if !exclude {
+		action = "included"
+	}
+	if err := s.appendQuarantineHistory(r.Context(), quarantineHistoryEvent{Timestamp: record.ExcludedAt, Action: "record_" + action, RecordID: id, NodeID: record.NodeID, Status: record.Status, Message: reason}, principal.Username); err != nil {
+		jsonError(w, "disposition saved but history could not be written", http.StatusServiceUnavailable)
+		return
+	}
+	s.auditAction(principal, "quarantine."+action, quarantineRecordsCollection+"/"+id, "success", map[string]string{"reason": reason})
+	jsonOK(w, map[string]any{"record": record, "status": record.Status})
+}
+
+func (s *Server) handleQuarantineRawDelete(w http.ResponseWriter, r *http.Request, rawID string) {
+	principal, err := s.security.AuthorizeRequest(r, middleware.PermissionWriteLogs)
+	if err != nil {
+		jsonError(w, "logs:write permission required", http.StatusForbidden)
+		return
+	}
+	id := safeID(rawID)
+	if id == "" {
+		jsonError(w, "invalid record ID", http.StatusBadRequest)
+		return
+	}
+	record, doc, err := s.getQuarantineRecord(r.Context(), id)
+	if err != nil {
+		jsonError(w, "quarantine record not found", http.StatusNotFound)
+		return
+	}
+	if err := s.quarantine.store.Delete(r.Context(), quarantineRawCollection, id, true, principal.Username); err != nil && !errors.Is(err, os.ErrNotExist) {
+		jsonError(w, "retained evidence could not be deleted", http.StatusServiceUnavailable)
+		return
+	}
+	record.RawAvailable, record.RawExpiresAt = false, time.Time{}
+	if err := s.putQuarantineRecord(r.Context(), record, doc.CreatedBy); err != nil {
+		jsonError(w, "evidence deleted but record metadata could not be updated", http.StatusServiceUnavailable)
+		return
+	}
+	if err := s.appendQuarantineHistory(r.Context(), quarantineHistoryEvent{Timestamp: time.Now().UTC(), Action: "raw_evidence_deleted", RecordID: id, NodeID: record.NodeID, Status: record.Status, Message: "Retained raw evidence permanently deleted by authorized operator."}, principal.Username); err != nil {
+		jsonError(w, "evidence deleted but history could not be written", http.StatusServiceUnavailable)
+		return
+	}
+	s.auditAction(principal, "quarantine.raw.delete", quarantineRecordsCollection+"/"+id, "success", map[string]string{"record_revision": strconv.Itoa(doc.Revision)})
+	jsonOK(w, map[string]any{"record_id": id, "raw_available": false, "deleted": true})
 }
 
 // handleQuarantineAnalyze runs the production parser against the exact
@@ -749,6 +863,10 @@ func (s *Server) handleQuarantineReprocess(w http.ResponseWriter, r *http.Reques
 		}
 		if record.NodeID != request.NodeID {
 			jsonError(w, "all records must belong to the target node", http.StatusConflict)
+			return
+		}
+		if record.Status != "waiting" && record.Status != "replay_failed" {
+			jsonError(w, "only waiting or replay-failed records can be replayed", http.StatusConflict)
 			return
 		}
 		if record.Status == "dead_letter" || record.Status == "manual_attention" || record.AttemptCount >= 5 {

@@ -39,6 +39,36 @@ func TestAssuranceScoreAndParserCandidateLifecycle(t *testing.T) {
 	if response.StatusCode != http.StatusOK || decodeMap(t, data)["state"] != "in_review" {
 		t.Fatalf("submit %d: %s", response.StatusCode, data)
 	}
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+id+"/approve", map[string]any{})
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("creator must not approve their own parser, got %d: %s", response.StatusCode, data)
+	}
+	rejectedDraftResponse, rejectedDraftData := f.request(http.MethodPost, "/api/v1/assurance/parsers", map[string]any{"name": "Reject Candidate", "parser": parser, "cases": cases})
+	if rejectedDraftResponse.StatusCode != http.StatusCreated {
+		t.Fatalf("second draft create %d: %s", rejectedDraftResponse.StatusCode, rejectedDraftData)
+	}
+	rejectedID := decodeMap(t, rejectedDraftData)["id"].(string)
+	rejectedDraftResponse, rejectedDraftData = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+rejectedID+"/submit", map[string]any{})
+	if rejectedDraftResponse.StatusCode != http.StatusOK {
+		t.Fatalf("second draft submit %d: %s", rejectedDraftResponse.StatusCode, rejectedDraftData)
+	}
+	if _, err := f.server.auth.CreateUser("admin", "independent-reviewer", "reviewer@example.test", "reviewer", "Reviewer-password-12345!"); err != nil {
+		t.Fatal(err)
+	}
+	f.login("independent-reviewer", "Reviewer-password-12345!")
+	f.refreshCSRF()
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+id+"/approve", map[string]any{})
+	if response.StatusCode != http.StatusOK || decodeMap(t, data)["state"] != "approved" {
+		t.Fatalf("independent approval %d: %s", response.StatusCode, data)
+	}
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+rejectedID+"/reject", map[string]any{"reason": "Held-out cases are incomplete"})
+	if response.StatusCode != http.StatusOK || decodeMap(t, data)["state"] != "rejected" {
+		t.Fatalf("independent rejection %d: %s", response.StatusCode, data)
+	}
+	rejectedDoc, err := f.server.metadata.Get(context.Background(), "parser-packs", rejectedID, 0)
+	if err != nil || !strings.Contains(string(rejectedDoc.Payload), "Held-out cases are incomplete") {
+		t.Fatalf("review rejection reason not persisted: doc=%+v err=%v", rejectedDoc, err)
+	}
 	response, data = f.request(http.MethodPost, "/api/v1/assurance/run", map[string]any{"raw": `{"level":"INFO","user":"alice"}`, "desired": map[string]any{"level": "INFO", "user": "alice"}})
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("assurance run %d: %s", response.StatusCode, data)
