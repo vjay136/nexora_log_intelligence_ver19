@@ -86,36 +86,40 @@ type Config struct {
 }
 
 type Server struct {
-	cfg                    Config
-	startedAt              time.Time
-	auth                   *auth.Store
-	fleet                  *fleet.Fleet
-	rollouts               *rolloutStateManager
-	parsers                *registry.Registry
-	events                 *eventstore.Store
-	telemetry              *TelemetryController
-	streamTelemetry        *StreamHub
-	metadata               metastore.Store
-	artifactStorage        metastore.BlobStore
-	storageWarning         string
-	audit                  *auditlog.ChainLog
-	security               *middleware.SecurityMiddleware
-	assurance              *assuranceVault
-	assuranceDeps          *engine.Deps
-	assuranceRuns          *assuranceRunScheduler
-	hub                    *wsrelay.Hub
-	mux                    *http.ServeMux
-	enrollmentToken        string
-	enrollmentConsumedPath string
-	enrollmentMu           sync.Mutex
-	artifactKeys           [][]byte
-	aiMetrics              *aiUsageStore
-	quarantine             *quarantineVault
-	nupire                 nupireController
-	downloadKey            []byte
-	browserHeartbeatMu     sync.RWMutex
-	browserHeartbeatAt     time.Time
-	browserHeartbeatUser   string
+	cfg                      Config
+	startedAt                time.Time
+	auth                     *auth.Store
+	fleet                    *fleet.Fleet
+	rollouts                 *rolloutStateManager
+	parsers                  *registry.Registry
+	events                   *eventstore.Store
+	telemetry                *TelemetryController
+	streamTelemetry          *StreamHub
+	metadata                 metastore.Store
+	artifactStorage          metastore.BlobStore
+	storageWarning           string
+	audit                    *auditlog.ChainLog
+	security                 *middleware.SecurityMiddleware
+	assurance                *assuranceVault
+	assuranceDeps            *engine.Deps
+	assuranceRuns            *assuranceRunScheduler
+	hub                      *wsrelay.Hub
+	mux                      *http.ServeMux
+	enrollmentToken          string
+	enrollmentConsumedPath   string
+	enrollmentMu             sync.Mutex
+	artifactKeys             [][]byte
+	aiMetrics                *aiUsageStore
+	quarantine               *quarantineVault
+	nupire                   nupireController
+	downloadKey              []byte
+	browserHeartbeatMu       sync.RWMutex
+	browserHeartbeatAt       time.Time
+	browserHeartbeatUser     string
+	notificationHTTPClient   *http.Client
+	notificationQueue        chan notificationDeliveryJob
+	notificationWorkerCancel context.CancelFunc
+	notificationWorkerDone   chan struct{}
 }
 
 func New(cfg Config) (*Server, error) {
@@ -222,7 +226,7 @@ func New(cfg Config) (*Server, error) {
 		_ = storage.Close()
 		return nil, fmt.Errorf("NUPIRE state: %w", err)
 	}
-	s := &Server{cfg: cfg, startedAt: time.Now().UTC(), auth: authStore, fleet: fleet.New(filepath.Join(cfg.StateDir, "fleet.json")), rollouts: newRolloutStateManager(filepath.Join(cfg.StateDir, "rollouts.json")), parsers: registryStore, events: events, telemetry: telemetryController, streamTelemetry: NewStreamHub(128), metadata: storage, artifactStorage: artifactStorage, storageWarning: warning, audit: auditLogger, security: security, assurance: vault, assuranceDeps: assuranceDeps, hub: wsrelay.NewHub(), enrollmentToken: enrollment, enrollmentConsumedPath: filepath.Join(cfg.StateDir, "consumed-enrollment-tokens.sha256"), aiMetrics: &aiUsageStore{}, quarantine: quarantine, nupire: persistentNUPIREController{store: nupireStore}}
+	s := &Server{cfg: cfg, startedAt: time.Now().UTC(), auth: authStore, fleet: fleet.New(filepath.Join(cfg.StateDir, "fleet.json")), rollouts: newRolloutStateManager(filepath.Join(cfg.StateDir, "rollouts.json")), parsers: registryStore, events: events, telemetry: telemetryController, streamTelemetry: NewStreamHub(128), metadata: storage, artifactStorage: artifactStorage, storageWarning: warning, audit: auditLogger, security: security, assurance: vault, assuranceDeps: assuranceDeps, hub: wsrelay.NewHub(), enrollmentToken: enrollment, enrollmentConsumedPath: filepath.Join(cfg.StateDir, "consumed-enrollment-tokens.sha256"), aiMetrics: &aiUsageStore{}, quarantine: quarantine, nupire: persistentNUPIREController{store: nupireStore}, notificationQueue: make(chan notificationDeliveryJob, 128), notificationWorkerDone: make(chan struct{})}
 	s.downloadKey = append([]byte(nil), csrfKey...)
 	s.artifactKeys = parsePublicKeys(cfg)
 	s.mux = http.NewServeMux()
@@ -240,6 +244,7 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.startNotificationWorker()
 	return s, nil
 }
 
@@ -424,6 +429,10 @@ func (s *Server) Close() error {
 	var errs []string
 	if s.assuranceRuns != nil {
 		s.assuranceRuns.Close()
+	}
+	if s.notificationWorkerCancel != nil {
+		s.notificationWorkerCancel()
+		<-s.notificationWorkerDone
 	}
 	if s.quarantine != nil && s.quarantine.store != nil {
 		if err := s.quarantine.store.Close(); err != nil {

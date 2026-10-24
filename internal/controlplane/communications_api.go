@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,8 +17,9 @@ import (
 )
 
 const (
-	notificationConfigCollection = "notification-config"
-	notificationAckCollection    = "notification-acks"
+	notificationConfigCollection   = "notification-config"
+	notificationAckCollection      = "notification-acks"
+	notificationDeliveryCollection = "notification-deliveries"
 )
 
 var envNamePattern = regexp.MustCompile(`^[A-Z][A-Z0-9_]{1,127}$`)
@@ -90,6 +92,9 @@ type notificationChannelConfig struct {
 	Endpoint       string `json:"endpoint,omitempty"`
 	SenderEnv      string `json:"sender_env,omitempty"`
 	RecipientEnv   string `json:"recipient_env,omitempty"`
+	ServerEnv      string `json:"server_env,omitempty"`
+	UsernameEnv    string `json:"username_env,omitempty"`
+	PasswordEnv    string `json:"password_env,omitempty"`
 	DeliveryStatus string `json:"delivery_status,omitempty"`
 }
 
@@ -182,7 +187,15 @@ func (s *Server) handleNotificationFeed(w http.ResponseWriter, r *http.Request) 
 			break
 		}
 	}
-	jsonOK(w, map[string]any{"notifications": items, "count": len(items), "delivery_history": map[string]any{"in_app": "derived from persisted audit records", "email": "not dispatched by this build", "pagerduty": "not dispatched by this build"}, "policy": policy})
+	deliveries, _ := s.metadata.List(r.Context(), notificationDeliveryCollection, metastore.Query{Limit: 500})
+	history := make([]map[string]any, 0, len(deliveries))
+	for _, doc := range deliveries {
+		var attempt notificationDeliveryAttempt
+		if json.Unmarshal(doc.Payload, &attempt) == nil {
+			history = append(history, map[string]any{"id": attempt.ID, "sequence": attempt.Sequence, "channel": attempt.Channel, "attempt": attempt.Attempt, "status": attempt.Status, "timestamp": attempt.Timestamp, "error": attempt.Error})
+		}
+	}
+	jsonOK(w, map[string]any{"notifications": items, "count": len(items), "delivery_history": map[string]any{"in_app": "derived from persisted audit records", "attempts": history}, "policy": policy})
 }
 
 func (s *Server) handleNotificationAck(w http.ResponseWriter, r *http.Request) {
@@ -238,6 +251,16 @@ func (s *Server) readNotificationPolicy(r *http.Request) notificationPolicy {
 
 func (s *Server) notificationChannelStatus(policy notificationPolicy) map[string]any {
 	result := map[string]any{}
+	latest := map[string]notificationDeliveryAttempt{}
+	docs, _ := s.metadata.List(context.Background(), notificationDeliveryCollection, metastore.Query{Limit: 500})
+	for _, doc := range docs {
+		var attempt notificationDeliveryAttempt
+		if json.Unmarshal(doc.Payload, &attempt) == nil {
+			if current, ok := latest[attempt.Channel]; !ok || attempt.Timestamp.After(current.Timestamp) {
+				latest[attempt.Channel] = attempt
+			}
+		}
+	}
 	for name, channel := range policy.Channels {
 		status := "disabled"
 		switch name {
@@ -246,8 +269,8 @@ func (s *Server) notificationChannelStatus(policy notificationPolicy) map[string
 				status = "available"
 			}
 		case "email":
-			if channel.Enabled && envConfigured(channel.SenderEnv) && envConfigured(channel.RecipientEnv) {
-				status = "configured_not_dispatched"
+			if channel.Enabled && channelConfiguredEmail(channel) {
+				status = "ready"
 			} else if channel.Enabled {
 				status = "configuration_incomplete"
 			} else {
@@ -255,7 +278,7 @@ func (s *Server) notificationChannelStatus(policy notificationPolicy) map[string
 			}
 		case "pagerduty":
 			if channel.Enabled && envConfigured(channel.SecretEnv) {
-				status = "configured_not_dispatched"
+				status = "ready"
 			} else if channel.Enabled {
 				status = "configuration_incomplete"
 			} else {
@@ -265,10 +288,23 @@ func (s *Server) notificationChannelStatus(policy notificationPolicy) map[string
 			status = "unsupported"
 		}
 		delivery := "available in the authenticated in-app notification feed"
-		if name != "in_app" {
-			delivery = "external dispatch adapter is not present in this release"
+		if name == "email" {
+			delivery = "SMTP over implicit TLS (port 465); accepted only after SMTP DATA succeeds"
 		}
-		result[name] = map[string]any{"enabled": channel.Enabled, "status": status, "state": status, "delivery": delivery}
+		if name == "pagerduty" {
+			delivery = "PagerDuty Events API v2; accepted only after success acknowledgement"
+		}
+		entry := map[string]any{"enabled": channel.Enabled, "status": status, "state": status, "delivery": delivery}
+		if attempt, ok := latest[name]; ok {
+			entry["last_attempt"] = attempt
+			if attempt.Status == "delivered" {
+				entry["status"], entry["state"] = "delivered", "delivered"
+			}
+			if attempt.Status == "failed" {
+				entry["status"], entry["state"] = "delivery_failed", "delivery_failed"
+			}
+		}
+		result[name] = entry
 	}
 	return result
 }
@@ -291,10 +327,13 @@ func validateNotificationPolicy(policy notificationPolicy) bool {
 		if !oneOf(name, "in_app", "email", "pagerduty") {
 			return false
 		}
-		for _, value := range []string{channel.SecretEnv, channel.SenderEnv, channel.RecipientEnv} {
+		for _, value := range []string{channel.SecretEnv, channel.SenderEnv, channel.RecipientEnv, channel.ServerEnv, channel.UsernameEnv, channel.PasswordEnv} {
 			if value != "" && !envNamePattern.MatchString(value) {
 				return false
 			}
+		}
+		if (channel.UsernameEnv == "") != (channel.PasswordEnv == "") {
+			return false
 		}
 		if len(channel.Endpoint) > 512 {
 			return false

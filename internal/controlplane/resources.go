@@ -1707,5 +1707,8 @@ func (s *Server) auditAction(principal *middleware.SecurityContext, action, reso
 	if principal == nil {
 		return
 	}
-	_, _ = s.audit.Append(auditlog.Event{Action: action, Actor: principal.Username, Role: principal.Role, Resource: resource, Outcome: outcome, RemoteIP: principal.RemoteIP, Details: details})
+	event, err := s.audit.Append(auditlog.Event{Action: action, Actor: principal.Username, Role: principal.Role, Resource: resource, Outcome: outcome, RemoteIP: principal.RemoteIP, Details: details})
+	if err == nil {
+		s.dispatchAuditNotification(event)
+	}
 }

@@ -98,7 +98,7 @@ There are two related UI surfaces. Use **Parser Catalog & Priority** for runtime
 
 The **Rollouts** workspace lists proposals and supports approval, cancellation, and status inspection according to role. Creating a rollout from a signed artifact, upgrade, or parser sync retry creates an approval-gated proposal. Approving starts it; cancelling stops an eligible rollout. The Parser Fleet Sync inventory is the authoritative UI for per-parser desired/applied revision and hash. A completed rollout is not sufficient until client hashes are aligned and no errors/drift remain.
 
-The notification bell shows in-session progress, completion, and error messages from UI actions (including uploads, assurance runs and rollout actions); **Clear** clears this in-page list. It is not a durable email/SMS alert subscription. The Dashboard refreshes automatically about every 15 seconds and supports bounded time windows. Use Refresh after a change to reload current API state.
+The notification bell shows in-session progress, completion, and error messages from UI actions (including uploads, assurance runs and rollout actions); **Clear** clears this in-page list. The Notifications page separately shows the durable audit-derived feed and outbound delivery attempts. SMTP delivery uses implicit TLS on port 465; PagerDuty delivery requires a successful Events API v2 acknowledgement. Configure only environment-variable names in the UI and place values in the controller environment. `ready` reports a complete local configuration, while `delivered` requires provider acceptance. The Dashboard refreshes automatically about every 15 seconds and supports bounded time windows. Use Refresh after a change to reload current API state.
 
 ### Input paths and endpoints
 
