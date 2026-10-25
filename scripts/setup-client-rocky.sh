@@ -226,17 +226,6 @@ for item in value.get("outputs", []):
 PY
 )
 
-# Ship a harmless, representative event so a fresh installation can prove the
-# parser, local parsed output, and controller metadata path before production use.
-sample_log=/var/log/nli/input/auto.log
-install -d -o nli -g nli -m 0750 "$(dirname "$sample_log")"
-if [[ ! -s $sample_log ]]; then
-  printf '%s\n' '20261009 120000000+0000 nli-v19-sample smtp 1000 0 123456789 Note;SieveRuleMsg(2005/1) id=V19SAMPLE0001:policy=INBOUND:checkpoint=MSGRCPT:rule=IN_sample:msg=MISREPORT=eventType;sample|action;accept|geo;US|fromhost;192.0.2.10|helo;mail.example.test|sender;<sample@example.test>|spf_log;pass|dkim;1|dmarc;pass|rcpt;<recipient@example.test>|vade_vdct;clean|antispam;none' >"$sample_log"
-  chown nli:nli "$sample_log"
-  chmod 0640 "$sample_log"
-  info "created readable parser sample record: $sample_log"
-fi
-
 # Send bounded parser telemetry to the controller. Customer parsed fields stay
 # in the configured normal outputs and never go to the controller or Supabase.
 python3 - "$agent_config" "$CONFIG" <<'PY'
@@ -280,6 +269,13 @@ finally:
         os.unlink(tmp)
 PY
 
+# Enrollment can apply an approved parser generation before the services start.
+# Reassert the RPM runtime ownership contract after that atomic root-run swap so
+# the unprivileged parser agent can traverse packs and maintain quarantine state.
+install -d -o root -g nli -m 0750 /var/lib/nli/parsers
+install -d -o nli -g nli -m 0750 /var/lib/nli/parsers/quarantine
+find /var/lib/nli/parsers -maxdepth 1 -type f -exec chown root:nli {} + -exec chmod 0640 {} +
+
 systemctl daemon-reload
 systemctl enable --now "$agent_service" "$SERVICE"
 sleep 2
@@ -294,4 +290,4 @@ if [[ -n $BOOTSTRAP_FILE && ${NLI_KEEP_BOOTSTRAP:-0} != 1 ]]; then
   info 'removed the local one-use bootstrap copy after successful enrollment'
 fi
 info 'PASS: parser and control services are active, enrollment succeeded, heartbeat passed, and the node token is protected'
-info 'the initial sample SMTP record is configured for controller delivery; verify it in the WebView after the next polling interval'
+info 'no sample events were injected; live counters advance only for operator-provided input records'

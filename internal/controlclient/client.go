@@ -627,6 +627,20 @@ func (c *Client) applyParsers(ctx context.Context, payload json.RawMessage) (str
 			return "", err
 		}
 	}
+	parserEntries, err := os.ReadDir(staging)
+	if err != nil {
+		_ = os.RemoveAll(staging)
+		return "", err
+	}
+	for _, entry := range parserEntries {
+		if entry.IsDir() {
+			continue
+		}
+		if err := ensureNLIGroupReadable(filepath.Join(staging, entry.Name())); err != nil {
+			_ = os.RemoveAll(staging)
+			return "", err
+		}
+	}
 	backup := c.cfg.ParserDir + ".backup"
 	_ = os.RemoveAll(backup)
 	if _, err := os.Stat(c.cfg.ParserDir); err == nil {
@@ -844,7 +858,7 @@ func copyParserDirectory(source, destination string) error {
 // parser agent runs as nli:nli. A staging directory created only with 0750 is
 // therefore readable by the agent but prevents it from creating its runtime
 // quarantine directory after the staging directory is renamed into place.
-// Pre-creating the bounded runtime subdirectory with group write access keeps
+// Applying the RPM's root:nli / nli:nli ownership contract before rename keeps
 // the atomic swap and least-privilege service split intact.
 func prepareParserRuntimeDirectory(path string) error {
 	if err := os.MkdirAll(path, 0o750); err != nil {
@@ -853,11 +867,17 @@ func prepareParserRuntimeDirectory(path string) error {
 	if err := os.Chmod(path, 0o750); err != nil {
 		return err
 	}
-	quarantine := filepath.Join(path, "quarantine")
-	if err := os.MkdirAll(quarantine, 0o770); err != nil {
+	if err := ensureNLIGroupOwnership(path); err != nil {
 		return err
 	}
-	return os.Chmod(quarantine, 0o770)
+	quarantine := filepath.Join(path, "quarantine")
+	if err := os.MkdirAll(quarantine, 0o750); err != nil {
+		return err
+	}
+	if err := os.Chmod(quarantine, 0o750); err != nil {
+		return err
+	}
+	return ensureNLIOwnership(quarantine)
 }
 
 // writeSynchronizedAsset reapplies the final mode after creation so a
@@ -868,7 +888,7 @@ func writeSynchronizedAsset(path string, data []byte) error {
 	if err := os.WriteFile(path, data, 0o640); err != nil {
 		return err
 	}
-	return os.Chmod(path, 0o640)
+	return ensureNLIGroupReadable(path)
 }
 
 func activeAssetBundleStatus(path string) (string, map[string]int) {
@@ -1020,6 +1040,10 @@ func ensureNLIGroupReadable(path string) error {
 	if err := os.Chmod(path, 0640); err != nil {
 		return err
 	}
+	return ensureNLIGroupOwnership(path)
+}
+
+func ensureNLIGroupOwnership(path string) error {
 	group, err := user.LookupGroup("nli")
 	if err != nil {
 		return nil // RPM environments create this group; dev/test hosts may not.
@@ -1029,6 +1053,29 @@ func ensureNLIGroupReadable(path string) error {
 		return fmt.Errorf("invalid nli group id: %w", err)
 	}
 	if err := os.Chown(path, -1, groupID); err != nil && !errors.Is(err, os.ErrPermission) {
+		return err
+	}
+	return nil
+}
+
+func ensureNLIOwnership(path string) error {
+	account, err := user.Lookup("nli")
+	if err != nil {
+		return nil // RPM environments create this account; dev/test hosts may not.
+	}
+	group, err := user.LookupGroup("nli")
+	if err != nil {
+		return nil
+	}
+	userID, err := strconv.Atoi(account.Uid)
+	if err != nil {
+		return fmt.Errorf("invalid nli user id: %w", err)
+	}
+	groupID, err := strconv.Atoi(group.Gid)
+	if err != nil {
+		return fmt.Errorf("invalid nli group id: %w", err)
+	}
+	if err := os.Chown(path, userID, groupID); err != nil && !errors.Is(err, os.ErrPermission) {
 		return err
 	}
 	return nil

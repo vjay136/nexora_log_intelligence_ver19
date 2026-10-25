@@ -4,6 +4,8 @@
 
 This release fixes the reported duplicate-output and continuously increasing-count defect. The client now checkpoints every completed input prefix before a pending multiline record, makes durable local output authoritative before optional telemetry delivery, avoids replay after optional Loki, ClickHouse, or controller telemetry failures, and creates family output files only when that family receives a record.
 
+Atomic parser generations now preserve the RPM runtime ownership boundary (`root:nli` parser packs and an `nli:nli` quarantine directory), including during first enrollment and later fleet synchronization. Installers validate bundled parsers with temporary fixtures and never append synthetic events to live input paths, so a fresh deployment reports only operator-provided records.
+
 The release also adds an audited quarantine recovery workflow from evidence review through parser drafting, testing, independent approval, signed fleet rollout, client bundle-hash acknowledgement, targeted replay, and verification. Raw evidence can be viewed, exported, excluded, restored, or purged under role-based permissions without silently changing production parser behavior.
 
 Operational additions include queued SMTP and PagerDuty notifications, persistent delivery history, a live Client → Controller → WebApp communication-status view, stable background synchronization, browser branding, corrected timestamps, and explicit subsystem names and execution order for NHLE, NURSF, NAPI, NAL, NUPIRE, and EGPE.

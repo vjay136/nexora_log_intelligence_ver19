@@ -139,6 +139,11 @@ for output_family in auto imap pop webtop-webmail mta smtp-in smtp-out pabd capd
   ! compgen -G "/var/log/nli/output/${output_family}_quarantine_[0-9]*.jsonl" >/dev/null || fail "agent created an unused quarantine output: ${output_family}"
 done
 [[ -d /var/lib/nli/parsers/quarantine ]] || fail "atomic parser synchronization omitted the runtime quarantine directory"
+[[ $(stat -c '%U:%G %a' /var/lib/nli/parsers) == 'root:nli 750' ]] || fail "atomic parser root did not preserve root:nli 0750 ownership"
+[[ $(stat -c '%U:%G %a' /var/lib/nli/parsers/quarantine) == 'nli:nli 750' ]] || fail "agent quarantine runtime did not preserve nli:nli 0750 ownership"
+while IFS= read -r parser_file; do
+  [[ $(stat -c '%U:%G %a' "$parser_file") == 'root:nli 640' ]] || fail "synchronized parser file has unsafe or unreadable ownership: $parser_file"
+done < <(find /var/lib/nli/parsers -maxdepth 1 -type f -print)
 runuser -u nli -- test -w /var/lib/nli/parsers/quarantine || fail "runtime quarantine directory is not writable by the nli agent"
 
 count_auto_records() {

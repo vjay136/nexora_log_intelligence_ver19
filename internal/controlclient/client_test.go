@@ -350,8 +350,8 @@ func TestParserAssetBundleSynchronizesEveryRuntimeAssetClass(t *testing.T) {
 	if err != nil || !quarantineInfo.IsDir() {
 		t.Fatalf("atomic parser swap omitted the agent runtime quarantine directory: %v", err)
 	}
-	if runtime.GOOS != "windows" && quarantineInfo.Mode().Perm() != 0o770 {
-		t.Fatalf("runtime quarantine mode = %o, want 0770 for root:nli control to nli:nli agent handoff", quarantineInfo.Mode().Perm())
+	if runtime.GOOS != "windows" && quarantineInfo.Mode().Perm() != 0o750 {
+		t.Fatalf("runtime quarantine mode = %o, want 0750 for the nli-owned agent runtime directory", quarantineInfo.Mode().Perm())
 	}
 }
 

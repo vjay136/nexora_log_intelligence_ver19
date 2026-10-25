@@ -80,8 +80,11 @@ def run_case(output_selections, **values):
 
 def main():
     installer_text = INSTALLER.read_text(encoding="utf-8")
+    setup_text = (ROOT / "scripts" / "setup-client-rocky.sh").read_text(encoding="utf-8")
     assert "--automatic|--all-log-files" in installer_text
     assert "configured_output=${configured_output//\\{hour_utc\\}/$current_hour}" in installer_text
+    assert 'with target.open("a"' not in installer_text
+    assert "nli-v19-sample" not in setup_text
 
     config, env_file, control = run_case("1")
     assert [item["path"] for item in config["inputs"]] == [

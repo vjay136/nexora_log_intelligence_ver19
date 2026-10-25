@@ -588,14 +588,7 @@ for item in config.get("inputs", []):
         os.unlink(fixture_path)
 
     target = pathlib.Path(item["path"])
-    if not target.exists() or target.stat().st_size == 0:
-        with target.open("a", encoding="utf-8", newline="\n") as handle:
-            handle.write(sample["input"] + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        print(f"  PASS {family}: reviewed sample parsed by {matches[0]['parser']}; sample written to {target}")
-    else:
-        print(f"  PASS {family}: reviewed sample parsed by {matches[0]['parser']}; existing input preserved at {target}")
+    print(f"  PASS {family}: reviewed temporary sample parsed by {matches[0]['parser']}; live input preserved at {target}")
 PY
   fi
 

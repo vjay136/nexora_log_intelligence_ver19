@@ -318,8 +318,9 @@ one-use enrollment secret and removes its local bootstrap copy. It then asks:
    ClickHouse only):
 
 New managed production configurations begin reading at the end of existing
-files (`tail_from_end: true`). The packaged config keeps this disabled so the
-installer's parser proof sample remains available to one-shot validation.
+files (`tail_from_end: true`). Empty managed input files begin at byte zero.
+Installer parser self-tests use temporary files and never inject records into
+production input paths.
    - family-isolated local JSONL files under `/var/log/nli/output`;
    - a local JSONL file below `/var/log/nli` or `/var/lib/nli`;
    - a Loki HTTP endpoint, with optional tenant and bearer token; or
@@ -358,9 +359,9 @@ sudo dnf -y install ./nli_client_ver19.rpm
 sudo systemctl status nli-client-bootstrap nli-client-control nli-agent --no-pager
 ```
 
-The client RPM creates the input files as `nli:nli`, mode `0640`. When the
-agent starts, it opens these family-isolated output files for the current UTC
-hour using the timestamp pattern shown below:
+The client RPM creates empty input files as `nli:nli`, mode `0640`. The agent
+creates a family-isolated output file lazily only after the first routed record
+for that family, using the current UTC-hour timestamp pattern shown below:
 
 | Input | Successful JSONL | Quarantine JSONL |
 |---|---|---|
@@ -384,24 +385,25 @@ agent; after the path is created again, the running agent reopens it.
 
 To use every bundled parser without assigning a family to each path, enter
 `auto` at **Parser/service family**. To create and verify all ten configured
-sample paths, enter `automatic` for both log paths and parser family. Event-only
+empty input paths, enter `automatic` for both log paths and parser family. Event-only
 ingestion uses `filtered` plus a reviewed preset or exact custom selectors.
 These values are stored under each input's `selection` object in
 `/etc/nli/nli.json` and may be changed with `--configure-only`.
 
 The noninteractive default enables all ten input families. The interactive
-`automatic` choice creates one reviewed sample per bundled family under
-`/var/log/nli/input` (mode `0640`, owned by `nli:nli`) and executes a parser
-self-test before starting the service. Existing nonempty files are preserved.
-Confirm sample output with:
+`automatic` choice creates the empty paths under `/var/log/nli/input` (mode
+`0640`, owned by `nli:nli`) and executes each reviewed parser self-test against
+a temporary file before starting the service. Existing files are preserved and
+no synthetic event is appended. After writing your own authorized test record,
+confirm its output with:
 
 ```bash
 sudo systemctl status nli-agent nli-client-control --no-pager
 sudo tail -n 5 /var/log/nli/output/*_normalised_*.jsonl
 ```
 
-Then open **Live Metadata** and **Live Dashboard** in the WebApp; the sample's
-bounded parser telemetry should appear immediately after its controller POST.
+Then open **Live Metadata** and **Live Dashboard** in the WebApp; the test
+record's bounded parser telemetry should appear immediately after its controller POST.
 
 If a real log is unreadable, grant the `nli` account directory traversal and
 file read access, then use `sudo bash install-client-ver19.sh --configure-only`
