@@ -348,3 +348,106 @@ func TestMultilineSourceFlushesAsOneEventAndRestartDoesNotReplay(t *testing.T) {
 		t.Fatalf("checkpoint = %+v, want full input offset and three physical lines", got)
 	}
 }
+
+func TestAutoLineOrientedJSONBatchCheckpointsOnceAndRestartsExactlyOnce(t *testing.T) {
+	root := t.TempDir()
+	inputPath := filepath.Join(root, "auto.log")
+	var input strings.Builder
+	for id := 0; id < 49; id++ {
+		fmt.Fprintf(&input, `{"service":"auto","id":%d}`+"\n", id)
+	}
+	if err := os.WriteFile(inputPath, []byte(input.String()), 0600); err != nil {
+		t.Fatal(err)
+	}
+	outputPath := filepath.Join(root, "auto.jsonl")
+	stateDir := filepath.Join(root, "state")
+	cfg := Config{
+		Version: 2, Inputs: []InputConfig{{Path: inputPath, Service: "auto", Multiline: multiline.Config{
+			Enabled: true, FlushTimeoutMS: 4000, Rules: []string{"java_exception", "python_traceback", "go_panic"},
+		}}},
+		StateDir: stateDir, PollMS: 10, SourceWorkers: 1, DisableV5Parser: true,
+		Outputs:          []output.Config{{Type: "file", Path: outputPath, Routes: []string{"normal"}}},
+		TelemetryOutputs: []output.Config{{Type: "discard", Routes: []string{"telemetry"}}},
+	}
+	for run := 0; run < 2; run++ {
+		if err := Run(context.Background(), cfg, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 49 {
+		t.Fatalf("output has %d rows after restart, want 49", len(lines))
+	}
+	seen := make(map[int]int, 49)
+	for _, line := range lines {
+		var event map[string]any
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatal(err)
+		}
+		id, ok := event["id"].(float64)
+		if !ok {
+			t.Fatalf("event has no numeric id: %v", event)
+		}
+		seen[int(id)]++
+	}
+	for id := 0; id < 49; id++ {
+		if seen[id] != 1 {
+			t.Fatalf("input id %d emitted %d times, want exactly once", id, seen[id])
+		}
+	}
+	checkpointData, err := os.ReadFile(filepath.Join(stateDir, "offsets.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var checkpoints map[string]cursor
+	if err := json.Unmarshal(checkpointData, &checkpoints); err != nil {
+		t.Fatal(err)
+	}
+	if got := checkpoints[inputPath]; got.Offset != int64(input.Len()) || got.Line != 49 {
+		t.Fatalf("checkpoint = %+v, want offset %d and line 49", got, input.Len())
+	}
+}
+
+func BenchmarkAgentAuto49JSONLines(b *testing.B) {
+	root := b.TempDir()
+	inputPath := filepath.Join(root, "auto.log")
+	outputPath := filepath.Join(root, "auto.jsonl")
+	var batch strings.Builder
+	for id := 0; id < 49; id++ {
+		fmt.Fprintf(&batch, `{"service":"auto","id":%d}`+"\n", id)
+	}
+	if err := os.WriteFile(inputPath, nil, 0600); err != nil {
+		b.Fatal(err)
+	}
+	cfg := Config{
+		Version: 2, Inputs: []InputConfig{{Path: inputPath, Service: "auto", Multiline: multiline.Config{
+			Enabled: true, FlushTimeoutMS: 4000, Rules: []string{"java_exception", "python_traceback", "go_panic"},
+		}}},
+		StateDir: filepath.Join(root, "state"), PollMS: 50, SourceWorkers: 1, DisableV5Parser: true,
+		Outputs:          []output.Config{{Type: "file", Path: outputPath, Routes: []string{"normal"}}},
+		TelemetryOutputs: []output.Config{{Type: "discard", Routes: []string{"telemetry"}}},
+	}
+	b.SetBytes(int64(batch.Len()))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for iteration := 0; iteration < b.N; iteration++ {
+		file, err := os.OpenFile(inputPath, os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if _, err := file.WriteString(batch.String()); err != nil {
+			file.Close()
+			b.Fatal(err)
+		}
+		if err := file.Close(); err != nil {
+			b.Fatal(err)
+		}
+		if err := Run(context.Background(), cfg, true); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

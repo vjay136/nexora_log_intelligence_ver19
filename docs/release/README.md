@@ -1,6 +1,21 @@
 # NLI v19 release infrastructure
 
-## Release 19.0.0-3
+## Release 19.0.0-4
+
+Release 4 removes the avoidable final-row delay for line-oriented `auto` input while retaining explicit Java, Python, and Go stack-trace grouping and exactly-once restart checkpoints. It adds retained, bounded aggregate buckets for Overall Timeline History and lets operators add, edit, remove, validate, and independently approve rollouts containing one or many input paths. The UI keeps open controls mounted while canonical telemetry continues in the background.
+
+The release tests validate counter safety and bucket representation at a simulated 10,000,000 records/second. This is not a production throughput claim; capacity still depends on deployment hardware, input format, parser cost, and destination acknowledgement.
+
+### Operator acceptance for release 4
+
+1. Put 49 independent single-line JSON events with unique `id` values in one `auto` input file. Confirm the normalized output contains exactly 49 records without waiting for a multiline timeout. Restart the client and confirm the count remains 49, with every `id` present once. Separately verify Java/Python/Go stack traces still form one event per trace.
+2. In **Input Log Paths**, add a single absolute path and select its parser family. Add a second path, edit one, remove one, and run **Validate paths**. Save and publish the revision, request rollout to one enrolled client, obtain independent approval, and verify the client reports the applied profile revision. Repeat with multiple selected clients if available.
+3. Open every relevant selector while live telemetry is arriving. Change the option and verify the selected value remains visible and the page does not navigate or replace the control before selection completes.
+4. Open **Performance → Overall Timeline History**. Confirm persisted interval buckets show controller timestamps and exact received, parsed, quarantined, and error counts. Refresh the page and verify history remains; compare bucket totals with the canonical source counters for the same interval.
+
+Capture screenshots of the 49/49 output, approved/applied input revision, selected dropdown during live updates, and timeline bucket details for the deployment record. Do not interpret absent destination acknowledgement as successful remote delivery.
+
+## Previous release: 19.0.0-3
 
 This release fixes the reported duplicate-output and continuously increasing-count defect. The client now checkpoints every completed input prefix before a pending multiline record, makes durable local output authoritative before optional telemetry delivery, avoids replay after optional Loki, ClickHouse, or controller telemetry failures, and creates family output files only when that family receives a record.
 

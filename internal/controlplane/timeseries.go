@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -207,6 +208,24 @@ func (s *Server) handleMetricsTimeSeries(w http.ResponseWriter, r *http.Request)
 		}
 		points = append(points, map[string]any{"timestamp": bucket.time.Format(time.RFC3339), "logs_received": bucket.received, "logs_parsed": bucket.parsed, "logs_quarantined": bucket.quarantined, "errors": bucket.errors, "parse_latency_ms_avg": latency, "parse_rate_pct": parseRate, "ai_requests": bucket.aiRequests, "ai_success": bucket.aiSuccess, "ai_failure": bucket.aiFailure, "ai_latency_ms_avg": aiLatency})
 	}
+	canonical := make([]map[string]any, 0, bucketCount)
+	if nodeID == "" {
+		for index, bucket := range s.metricHistory.window(from, to, step) {
+			points[index]["received"] = bucket.Read
+			points[index]["parsed"] = bucket.Parsed
+			points[index]["quarantine"] = bucket.Quarantine
+			points[index]["errors"] = bucket.Errors
+			points[index]["logs_received"] = bucket.Read
+			points[index]["logs_parsed"] = bucket.Parsed
+			points[index]["logs_quarantined"] = bucket.Quarantine
+			canonical = append(canonical, map[string]any{
+				"timestamp": bucket.At.Format(time.RFC3339),
+				"received":  bucket.Read, "parsed": bucket.Parsed, "quarantine": bucket.Quarantine, "errors": bucket.Errors,
+				"read_delta": strconv.FormatUint(bucket.Read, 10), "parsed_delta": strconv.FormatUint(bucket.Parsed, 10), "quarantine_delta": strconv.FormatUint(bucket.Quarantine, 10),
+				"read_per_second": float64(bucket.Read) / step.Seconds(), "parsed_per_second": float64(bucket.Parsed) / step.Seconds(), "quarantine_per_second": float64(bucket.Quarantine) / step.Seconds(),
+			})
+		}
+	}
 	fleetSnapshot := s.fleet.All()
 	active := make([]*fleet.Node, 0, len(fleetSnapshot))
 	for _, node := range fleetSnapshot {
@@ -235,7 +254,21 @@ func (s *Server) handleMetricsTimeSeries(w http.ResponseWriter, r *http.Request)
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	system := map[string]any{"controller_cpu_count": runtime.NumCPU(), "controller_memory_alloc_bytes": mem.Alloc, "controller_memory_sys_bytes": mem.Sys, "controller_goroutines": runtime.NumGoroutine(), "client_cpu_percent_avg": nullableAverage(cpuSum, cpuCount), "client_memory_percent_avg": nullableAverage(memorySum, memoryCount), "client_load_1m_avg": nullableAverage(loadSum, loadCount), "availability": map[string]bool{"controller_cpu_percent": false, "controller_memory": true, "client_cpu_percent": cpuCount > 0, "client_memory_percent": memoryCount > 0, "client_load": loadCount > 0}}
-	jsonOK(w, map[string]any{"schema_version": "1", "range": rangeNameOrDefault(rangeName, "1h"), "step": rangeNameOrDefault(stepName, "1m"), "from": from.Format(time.RFC3339), "to": to.Format(time.RFC3339), "node_id": nodeID, "points": points, "fleet": map[string]any{"stats": s.fleet.Stats(), "clients": clientMetrics}, "system": system, "retention": map[string]any{"raw_logs": false, "event_payloads": false, "secrets": false, "series_source": "bounded_parser_metadata_and_latest_heartbeat"}})
+	lastObserved := time.Time{}
+	if s.metricHistory != nil {
+		s.metricHistory.mu.Lock()
+		lastObserved = s.metricHistory.lastObserved
+		s.metricHistory.mu.Unlock()
+	}
+	freshness := map[string]any{"state": "unavailable", "age_seconds": nil}
+	if !lastObserved.IsZero() {
+		age := time.Since(lastObserved)
+		freshness = map[string]any{"state": "live", "age_seconds": age.Seconds(), "observed_at": lastObserved.Format(time.RFC3339)}
+		if age > 15*time.Second {
+			freshness["state"] = "stale"
+		}
+	}
+	jsonOK(w, map[string]any{"schema_version": "1", "range": rangeNameOrDefault(rangeName, "1h"), "step": rangeNameOrDefault(stepName, "1m"), "from": from.Format(time.RFC3339), "to": to.Format(time.RFC3339), "node_id": nodeID, "points": points, "canonical_history": map[string]any{"scope": "all_sources", "bucket_width_seconds": 60, "query_step_seconds": int64(step.Seconds()), "count_encoding": "decimal_string", "points": canonical, "freshness": freshness, "retention_seconds": int64(metricHistoryRetention.Seconds()), "source": "canonical_latest_cumulative_counters"}, "fleet": map[string]any{"stats": s.fleet.Stats(), "clients": clientMetrics}, "system": system, "retention": map[string]any{"raw_logs": false, "event_payloads": false, "secrets": false, "series_source": "bounded_parser_metadata_and_latest_heartbeat"}})
 }
 
 func nullableAverage(total float64, count int) any {

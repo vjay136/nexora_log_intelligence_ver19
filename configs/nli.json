@@ -15,8 +15,7 @@
         "rules": [
           "java_exception",
           "python_traceback",
-          "go_panic",
-          "generic_continuation"
+          "go_panic"
         ]
       },
       "mask": {

@@ -94,6 +94,10 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/README.md
 
 %changelog
+* Sun Oct 25 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-4
+- Add persisted bounded telemetry buckets for the Overall Timeline dashboard
+- Support revisioned single or multiple input-path profile rollouts with independent approval
+
 * Sat Oct 24 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-3
 - Add communication status, notifications, browser recovery, and guided parser remediation.
 

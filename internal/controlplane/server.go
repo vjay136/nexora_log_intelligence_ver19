@@ -110,6 +110,7 @@ type Server struct {
 	enrollmentMu             sync.Mutex
 	artifactKeys             [][]byte
 	aiMetrics                *aiUsageStore
+	metricHistory            *metricHistory
 	quarantine               *quarantineVault
 	nupire                   nupireController
 	downloadKey              []byte
@@ -226,7 +227,12 @@ func New(cfg Config) (*Server, error) {
 		_ = storage.Close()
 		return nil, fmt.Errorf("NUPIRE state: %w", err)
 	}
-	s := &Server{cfg: cfg, startedAt: time.Now().UTC(), auth: authStore, fleet: fleet.New(filepath.Join(cfg.StateDir, "fleet.json")), rollouts: newRolloutStateManager(filepath.Join(cfg.StateDir, "rollouts.json")), parsers: registryStore, events: events, telemetry: telemetryController, streamTelemetry: NewStreamHub(128), metadata: storage, artifactStorage: artifactStorage, storageWarning: warning, audit: auditLogger, security: security, assurance: vault, assuranceDeps: assuranceDeps, hub: wsrelay.NewHub(), enrollmentToken: enrollment, enrollmentConsumedPath: filepath.Join(cfg.StateDir, "consumed-enrollment-tokens.sha256"), aiMetrics: &aiUsageStore{}, quarantine: quarantine, nupire: persistentNUPIREController{store: nupireStore}, notificationQueue: make(chan notificationDeliveryJob, 128), notificationWorkerDone: make(chan struct{})}
+	history, err := newMetricHistory(filepath.Join(cfg.StateDir, "metric-history.json"))
+	if err != nil {
+		_ = storage.Close()
+		return nil, fmt.Errorf("metric history: %w", err)
+	}
+	s := &Server{cfg: cfg, startedAt: time.Now().UTC(), auth: authStore, fleet: fleet.New(filepath.Join(cfg.StateDir, "fleet.json")), rollouts: newRolloutStateManager(filepath.Join(cfg.StateDir, "rollouts.json")), parsers: registryStore, events: events, telemetry: telemetryController, streamTelemetry: NewStreamHub(128), metadata: storage, artifactStorage: artifactStorage, storageWarning: warning, audit: auditLogger, security: security, assurance: vault, assuranceDeps: assuranceDeps, hub: wsrelay.NewHub(), enrollmentToken: enrollment, enrollmentConsumedPath: filepath.Join(cfg.StateDir, "consumed-enrollment-tokens.sha256"), aiMetrics: &aiUsageStore{}, metricHistory: history, quarantine: quarantine, nupire: persistentNUPIREController{store: nupireStore}, notificationQueue: make(chan notificationDeliveryJob, 128), notificationWorkerDone: make(chan struct{})}
 	s.downloadKey = append([]byte(nil), csrfKey...)
 	s.artifactKeys = parsePublicKeys(cfg)
 	s.mux = http.NewServeMux()
@@ -840,6 +846,12 @@ func (s *Server) handleNodeStreamTelemetry(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	result := s.streamTelemetry.PublishBatch(request)
+	if result.Status == "accepted" {
+		// The canonical live state has already accepted this batch. Retention is
+		// best-effort so a local history disk failure cannot trigger client retries
+		// or turn an accepted publication into an apparent ingestion failure.
+		_ = s.metricHistory.observe(s.streamTelemetry.Snapshot(), time.Now().UTC())
+	}
 	jsonOK(w, result)
 }
 

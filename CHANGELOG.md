@@ -1,5 +1,11 @@
 # Changelog
 
+## [19.0.0-4] - 2026-10-25
+
+- Remove the unnecessary generic multiline continuation from line-oriented auto-family inputs while retaining explicit stack-trace assembly and restart-safe exactly-once output.
+- Add persisted aggregate interval history for Overall Timeline dashboards, plus editable, validated, approval-gated single or multiple input-path rollouts.
+- Keep dashboard controls stable while live telemetry updates in the background.
+
 ## [19.0.0-2] - 2026-10-24
 
 - Wired controller, client-host, destination acknowledgement, replay, release-readiness, NHLE, NAPI and NAL evidence into the shared canonical live snapshot and their Monitoring views.

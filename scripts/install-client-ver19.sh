@@ -330,11 +330,29 @@ multiline = template.get("multiline", {
     "enabled": True,
     "max_bytes": 2097152,
     "flush_timeout_ms": 4000,
-    "rules": ["java_exception", "python_traceback", "go_panic", "generic_continuation"],
+    "rules": ["java_exception", "python_traceback", "go_panic"],
 })
+multiline_by_service = {
+    item.get("service"): item.get("multiline", multiline)
+    for item in config.get("inputs", [])
+    if item.get("service")
+}
 mask = template.get("mask", {"disable_types": []})
+def multiline_for_service(service):
+    # The auto family ingests line-oriented JSON. Generic continuation treats
+    # every non-indented JSON record as the start of a multiline event, causing
+    # a durable output flush and checkpoint for every row. Keep explicit stack
+    # trace rules so actual Java/Python/Go exceptions remain assembled.
+    result = dict(multiline_by_service.get(service, multiline))
+    rules = list(result.get("rules", []))
+    if service == "auto":
+        result["rules"] = [rule for rule in rules if rule != "generic_continuation"]
+    else:
+        result["rules"] = rules
+    return result
+
 config["inputs"] = [
-    {"path": value, "service": service, "selection": {"mode": mode, "events": events, "methods": methods, "services": selected_services, "hostnames": hostnames, "match_service": match_service}, "multiline": multiline, "mask": mask}
+    {"path": value, "service": service, "selection": {"mode": mode, "events": events, "methods": methods, "services": selected_services, "hostnames": hostnames, "match_service": match_service}, "multiline": multiline_for_service(service), "mask": mask}
     for value, service in zip(paths, services)
 ]
 config["tail_from_end"] = not all(value.startswith("/var/log/nli/input/") for value in paths)

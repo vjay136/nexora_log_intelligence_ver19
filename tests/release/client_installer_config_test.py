@@ -113,6 +113,8 @@ def main():
     assert [item["service"] for item in config["inputs"]] == [
         "auto", "imap", "pop", "webtop", "mta", "smtp-in", "smtp-out", "pabd", "capd", "pss"
     ]
+    assert "generic_continuation" not in config["inputs"][0]["multiline"]["rules"]
+    assert "generic_continuation" in config["inputs"][1]["multiline"]["rules"]
     assert [item["path"].rsplit("/", 1)[-1] for item in config["inputs"]] == [
         "auto.log", "imap.log", "pop.log", "webtop.log", "mta.log",
         "smtp-in.log", "smtp-out.log", "pabd.log", "capd.log", "pss.log",

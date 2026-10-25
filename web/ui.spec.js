@@ -574,6 +574,31 @@ test('equal-revision canonical heartbeat refreshes freshness without replacing t
   await expect(page.locator('#page')).toContainText('3');
 });
 
+test('canonical updates defer a global dashboard rerender while a select is focused', async ({ page }) => {
+  await mockController(page);
+  await page.addInitScript(() => {
+    const instances=[];
+    class FakeEventSource extends EventTarget {
+      constructor(url){super();this.url=url;instances.push(this);window.__streamSources=instances;setTimeout(()=>this.onopen?.(),0);}
+      close(){}
+      emit(type,data){this.dispatchEvent(new MessageEvent(type,{data:JSON.stringify(data)}));}
+    }
+    window.EventSource=FakeEventSource;
+  });
+  const response=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/sync/snapshot');
+  await login(page);
+  const snapshot=await (await response).json();
+  await page.getByTestId('nav-operations').click();
+  const range=page.locator('#dashboard-range');
+  await range.focus();
+  await range.evaluate(node=>{window.__focusedSelect=node;});
+  await page.evaluate(value=>window.__streamSources.at(-1).emit('sync_delta',{schema_version:value.schema_version,revision:Number(value.revision)+1,generated_at:new Date().toISOString(),target_interval_ms:value.target_interval_ms,aggregate:{...value.aggregate,nli_queue_depth:17},source:{node_id:'node-1',source:'/var/log/mail.log',sequence:1,phase:'tailing',counters:{},rates:{},queue:{nli_queue_depth:17,queue_capacity:128},freshness:'live',freshness_age_ms:0},diagnostics:value.diagnostics,subsystems:value.subsystems}),snapshot);
+  await expect.poll(()=>page.evaluate(()=>({connected:window.__focusedSelect?.isConnected,focused:document.activeElement===window.__focusedSelect}))).toEqual({connected:true,focused:true});
+  await range.evaluate(node=>node.blur());
+  await expect(page.locator('#dashboard-range')).toHaveCount(1);
+  await expect(page.locator('.throughput-gauges')).toContainText('17');
+});
+
 test('shared snapshot recovery keeps canonical freshness live when SSE heartbeats stop', async ({ page }) => {
   await page.clock.install();
   const { observed } = await mockController(page);
@@ -928,6 +953,51 @@ test('input paths workspace saves a revisioned family profile using the dedicate
   expect(inputSaves[0]).toMatchObject({ id: 'mail-family-paths', config: { inputs: [{ path: '/var/log/imap.log', service: 'imap' }, { path: '/var/log/smtp.log', service: 'smtp-in' }] } });
 });
 
+test('input path editor adds, edits, removes and validates without replacing existing entries', async ({ page }) => {
+  await mockController(page);
+  await login(page);
+  await page.getByTestId('nav-input-paths').click();
+  const form=page.locator('#input-profile-form');
+  await form.locator('[name=quick_path]').fill('/var/log/custom/one.log');
+  await form.locator('[name=quick_family]').selectOption('smtp-in');
+  await form.getByRole('button',{name:'Add path with selected family'}).click();
+  const config=async()=>JSON.parse(await form.locator('[name=config]').inputValue());
+  await expect.poll(async()=> (await config()).inputs.length).toBe(11);
+  expect((await config()).inputs[0].path).toBe('/var/log/nli/input/auto.log');
+  expect((await config()).inputs[0].multiline.rules).not.toContain('generic_continuation');
+  expect((await config()).inputs.at(-1)).toMatchObject({path:'/var/log/custom/one.log',service:'smtp-in'});
+  expect((await config()).inputs.at(-1).multiline.rules).toEqual(['generic_continuation']);
+  await form.locator('[data-input-family="10"]').selectOption('imap');
+  expect((await config()).inputs.at(-1).service).toBe('imap');
+  await form.locator('[data-input-family="10"]').selectOption('auto');
+  expect((await config()).inputs.at(-1).multiline.rules).not.toContain('generic_continuation');
+  await form.getByRole('button',{name:'Remove /var/log/custom/one.log'}).click();
+  await expect.poll(async()=> (await config()).inputs.length).toBe(10);
+  await form.getByRole('button',{name:'Validate paths'}).click();
+  await expect(page.locator('#toast-region').getByText('10 input paths valid')).toBeVisible();
+});
+
+test('selecting input family leaves the open profile editor mounted for further selections', async ({ page }) => {
+  await mockController(page);
+  await login(page);
+  await page.getByTestId('nav-input-paths').click();
+  const family=page.locator('#input-profile-form [name=quick_family]');
+  await family.selectOption('smtp-in');
+  await expect(family).toHaveValue('smtp-in');
+  await expect(page.locator('#input-profile-form')).toBeVisible();
+  await family.selectOption('pop');
+  await expect(family).toHaveValue('pop');
+});
+
+test('performance timeline reads persisted metrics and reports bounded exact-count buckets', async ({ page }) => {
+  const mock=await mockController(page);
+  await login(page);
+  await page.getByTestId('nav-performance').click();
+  await expect(page.getByRole('heading',{name:'Overall Timeline History'})).toBeVisible();
+  await expect(page.getByText(/persisted measurements/)).toBeVisible();
+  expect(mock.observed).toContain('GET /api/v1/metrics/timeseries');
+});
+
 test('input path rollout uses the dedicated inputs-only contract and explicit node IDs', async ({ page }) => {
   const mock = await mockController(page);
   const profile = { id: 'mail-inputs', revision: 2, state: 'active', updated_at: '2026-10-14T00:00:00Z', payload: { name: 'Mail inputs', config: { inputs: [{ path: '/var/log/nli/input/imap.log', service: 'imap' }] } } };
@@ -971,6 +1041,19 @@ test('input path rollout supports every eligible client without enumerating node
   await form.getByRole('button',{name:'Request independent approval'}).click();
   await expect.poll(()=>mock.inputRolloutSaves.length).toBe(1);
   expect(mock.inputRolloutSaves[0].body.node_ids).toEqual([]);
+});
+
+test('published input profile can be loaded and extended as a new draft revision', async ({ page }) => {
+  const mock=await mockController(page);
+  mock.inputProfiles.push({id:'published-inputs',revision:4,state:'active',payload:{name:'Published inputs',config:{inputs:[{path:'/var/log/existing.log',service:'auto'}]}}});
+  await login(page);
+  await page.getByTestId('nav-input-paths').click();
+  await page.getByRole('button',{name:'Edit'}).click();
+  const form=page.locator('#input-profile-form');
+  await expect(form.locator('[name=id]')).toHaveValue('published-inputs');
+  await form.locator('[name=quick_path]').fill('/var/log/added.log');
+  await form.getByRole('button',{name:'Add path with selected family'}).click();
+  expect(JSON.parse(await form.locator('[name=config]').inputValue()).inputs.map(item=>item.path)).toEqual(['/var/log/existing.log','/var/log/added.log']);
 });
 
 test('mobile navigation exposes all workspaces without horizontal page overflow', async ({ page }) => {

@@ -108,6 +108,10 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/PARSER_CATALOG.md
 
 %changelog
+* Sun Oct 25 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-4
+- Emit independent auto-family JSON log rows immediately while preserving stack-trace grouping and exactly-once checkpoints
+- Add retained aggregate timeline history and multi-path input editing, validation, and rollout coverage
+
 * Sat Oct 24 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-3
 - Prevent restart replay, add audited quarantine recovery, and expand live communication evidence.
 
