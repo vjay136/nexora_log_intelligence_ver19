@@ -1151,7 +1151,12 @@ func (s *Server) handleRollouts(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "rollout catalog unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		jsonOK(w, map[string]any{"proposals": proposals, "live": s.rollouts.List()})
+		pending, err := s.metadata.List(r.Context(), "rollout-proposals", metastore.Query{State: "pending_approval", Limit: 1000})
+		if err != nil {
+			jsonError(w, "rollout approval count unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		jsonOK(w, map[string]any{"proposals": proposals, "pending_approval_count": len(pending), "live": s.rollouts.List()})
 	case http.MethodPost:
 		var proposal map[string]any
 		if err := decodeJSON(r, &proposal, 2<<20); err != nil {

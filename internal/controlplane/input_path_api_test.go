@@ -2,14 +2,12 @@ package controlplane
 
 import (
 	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
 
 	"nexora.local/nli-v19/internal/fleet"
-	metastore "nexora.local/nli-v19/internal/store"
+	"nexora.local/nli-v19/internal/rollout"
 )
 
 func TestInputPathProfileAllows256AndRejects257Inputs(t *testing.T) {
@@ -59,7 +57,7 @@ func TestInputPathDraftCanAddEditAndRemovePaths(t *testing.T) {
 	}
 }
 
-func TestInputPathProfileRolloutTargetsSelectedOrAllAndNeedsIndependentApproval(t *testing.T) {
+func TestInputPathProfileRolloutSupportsExactOneAndExistingTargetModes(t *testing.T) {
 	f := newAPIFixture(t)
 	for _, user := range []map[string]any{{"username": "path-reviewer", "email": "path-reviewer@example.test", "role": "reviewer", "password": "Path-reviewer-password-12345!"}} {
 		response, data := f.request(http.MethodPost, "/api/v1/users", user)
@@ -69,14 +67,38 @@ func TestInputPathProfileRolloutTargetsSelectedOrAllAndNeedsIndependentApproval(
 	}
 	f.server.fleet.Register(&fleet.Node{ID: "path-node-1", Hostname: "node-1"})
 	f.server.fleet.Register(&fleet.Node{ID: "path-node-2", Hostname: "node-2"})
-	profilePayload, _ := json.Marshal(map[string]any{"name": "mail logs", "config": map[string]any{"inputs": []any{
+	response, data := f.request(http.MethodPost, "/api/v1/config/input-paths", map[string]any{"id": "mail-profile", "name": "mail logs", "config": map[string]any{"inputs": []any{
 		map[string]any{"path": "/var/log/mail/a.log", "service": "smtp-in"},
 		map[string]any{"path": "/var/log/mail/b.log", "service": "smtp-out"},
 	}}})
-	if _, err := f.server.metadata.Put(context.Background(), metastore.Document{Collection: "input-paths", ID: "mail-profile", State: "active", Payload: profilePayload, CreatedBy: "path-author"}); err != nil {
-		t.Fatal(err)
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("create draft profile %d: %s", response.StatusCode, data)
 	}
-	response, data := f.request(http.MethodPost, "/api/v1/config/input-paths/mail-profile/rollout", map[string]any{"node_ids": []string{"path-node-1"}})
+	response, data = f.request(http.MethodPost, "/api/v1/config/input-paths/mail-profile/rollout", map[string]any{"node_ids": []string{"path-node-1"}})
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("draft profile rollout must be rejected %d: %s", response.StatusCode, data)
+	}
+	response, data = f.request(http.MethodPost, "/api/v1/config/input-paths/mail-profile/submit", map[string]any{})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("submit profile %d: %s", response.StatusCode, data)
+	}
+	response, data = f.request(http.MethodPost, "/api/v1/config/input-paths/mail-profile/rollout", map[string]any{"node_ids": []string{"path-node-1"}})
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("unpublished profile rollout must be rejected %d: %s", response.StatusCode, data)
+	}
+	f.login("path-reviewer", "Path-reviewer-password-12345!")
+	f.refreshCSRF()
+	response, data = f.request(http.MethodPost, "/api/v1/config/input-paths/mail-profile/approve", map[string]any{})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("independent profile approval %d: %s", response.StatusCode, data)
+	}
+	f.login("admin", "Admin-password-12345!")
+	f.refreshCSRF()
+	response, data = f.request(http.MethodPost, "/api/v1/config/input-paths/mail-profile/publish", map[string]any{})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("publish approved profile %d: %s", response.StatusCode, data)
+	}
+	response, data = f.request(http.MethodPost, "/api/v1/config/input-paths/mail-profile/rollout", map[string]any{"node_ids": []string{"path-node-1"}})
 	if response.StatusCode != http.StatusCreated {
 		t.Fatalf("selected rollout %d: %s", response.StatusCode, data)
 	}
@@ -95,6 +117,10 @@ func TestInputPathProfileRolloutTargetsSelectedOrAllAndNeedsIndependentApproval(
 	if len(patch["inputs"].([]any)) != 2 {
 		t.Fatalf("client config patch omitted profile paths: %#v", patch)
 	}
+	response, data = f.request(http.MethodGet, "/api/v1/rollouts", nil)
+	if response.StatusCode != http.StatusOK || decodeMap(t, data)["pending_approval_count"] != float64(1) {
+		t.Fatalf("pending approval count before action: %d %s", response.StatusCode, data)
+	}
 	response, data = f.request(http.MethodPost, "/api/v1/rollouts/"+selectedID+"/approve", map[string]any{})
 	if response.StatusCode != http.StatusConflict {
 		t.Fatalf("proposal creator approved their own rollout: %d %s", response.StatusCode, data)
@@ -108,8 +134,12 @@ func TestInputPathProfileRolloutTargetsSelectedOrAllAndNeedsIndependentApproval(
 	approved := decodeMap(t, data)["payload"].(map[string]any)
 	liveID := approved["live_rollout_id"].(string)
 	command, ok := f.server.rollouts.Get(liveID)
-	if !ok || command.Status != rolloutStatusRunning {
+	if !ok || command.Status != rollout.StatusRunning {
 		t.Fatalf("approved input path rollout did not reach the client queue: %#v", command)
+	}
+	response, data = f.request(http.MethodGet, "/api/v1/rollouts", nil)
+	if response.StatusCode != http.StatusOK || decodeMap(t, data)["pending_approval_count"] != float64(0) {
+		t.Fatalf("pending approval count after approval: %d %s", response.StatusCode, data)
 	}
 	f.server.recordInputPathRolloutResult(liveID, "path-node-1", "completed", "configuration validated and applied")
 	response, data = f.request(http.MethodGet, "/api/v1/config/input-paths/mail-profile/rollout", nil)
@@ -122,17 +152,34 @@ func TestInputPathProfileRolloutTargetsSelectedOrAllAndNeedsIndependentApproval(
 
 	f.login("admin", "Admin-password-12345!")
 	f.refreshCSRF()
+	response, data = f.request(http.MethodPost, "/api/v1/config/input-paths/mail-profile/rollout", map[string]any{"node_ids": []string{"path-node-1", "path-node-2"}})
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("multi-node rollout %d: %s", response.StatusCode, data)
+	}
+	multi := decodeMap(t, data)["payload"].(map[string]any)
+	multiTargets := multi["target_nodes"].([]any)
+	if len(multiTargets) != 2 || multi["input_path_profile"].(map[string]any)["target_mode"] != "selected" {
+		t.Fatalf("selected multi-client targeting changed: %#v", multi)
+	}
+	multiID := decodeMap(t, data)["id"].(string)
 	response, data = f.request(http.MethodPost, "/api/v1/config/input-paths/mail-profile/rollout", map[string]any{"node_ids": []any{}})
 	if response.StatusCode != http.StatusCreated {
-		t.Fatalf("all eligible rollout %d: %s", response.StatusCode, data)
+		t.Fatalf("all-eligible rollout %d: %s", response.StatusCode, data)
 	}
 	all := decodeMap(t, data)["payload"].(map[string]any)
 	allTargets := all["target_nodes"].([]any)
-	if len(allTargets) != 2 {
-		t.Fatalf("all eligible target nodes = %#v", allTargets)
+	if len(allTargets) != 2 || all["input_path_profile"].(map[string]any)["target_mode"] != "all_eligible" {
+		t.Fatalf("all-eligible target mode changed: %#v", all)
 	}
-	pathProfile := all["input_path_profile"].(map[string]any)
-	if pathProfile["target_mode"] != "all_eligible" {
-		t.Fatalf("all eligible target mode missing: %#v", pathProfile)
+	allID := decodeMap(t, data)["id"].(string)
+	for _, id := range []string{multiID, allID} {
+		response, data = f.request(http.MethodPost, "/api/v1/rollouts/"+id+"/cancel", map[string]any{})
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("cancel pending proposal %s: %d %s", id, response.StatusCode, data)
+		}
+	}
+	response, data = f.request(http.MethodGet, "/api/v1/rollouts", nil)
+	if response.StatusCode != http.StatusOK || decodeMap(t, data)["pending_approval_count"] != float64(0) {
+		t.Fatalf("cancelled proposals remained pending: %d %s", response.StatusCode, data)
 	}
 }

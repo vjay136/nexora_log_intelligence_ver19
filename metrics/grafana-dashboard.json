@@ -1,0 +1,83 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus data source containing NLI client and controller samples",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    {"type":"grafana","id":"grafana","name":"Grafana","version":"10.0.0"},
+    {"type":"datasource","id":"prometheus","name":"Prometheus","version":"1.0.0"}
+  ],
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults":{"unit":"ops"},"overrides":[]},
+      "gridPos":{"h":8,"w":12,"x":0,"y":0},
+      "id":1,
+      "options":{"legend":{"displayMode":"list","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},
+      "targets":[{"expr":"sum(rate(nli_logs_received_total[5m]))","legendFormat":"received","refId":"A"},{"expr":"sum(rate(nli_logs_parsed_total[5m]))","legendFormat":"parsed","refId":"B"}],
+      "title":"Client log throughput",
+      "type":"timeseries"
+    },
+    {
+      "datasource": {"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults":{"unit":"ops"},"overrides":[]},
+      "gridPos":{"h":8,"w":12,"x":12,"y":0},
+      "id":2,
+      "options":{"legend":{"displayMode":"list","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},
+      "targets":[{"expr":"sum(nli_stream_queue_depth)","legendFormat":"queued records","refId":"A"},{"expr":"sum(nli_stream_queue_capacity)","legendFormat":"queue capacity","refId":"B"}],
+      "title":"Observed source queue depth",
+      "type":"timeseries"
+    },
+    {
+      "datasource": {"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults":{"unit":"percent","min":0,"max":100},"overrides":[]},
+      "gridPos":{"h":8,"w":12,"x":0,"y":8},
+      "id":3,
+      "options":{"legend":{"displayMode":"list","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},
+      "targets":[{"expr":"nli_client_cpu_percent","legendFormat":"{{hostname}}","refId":"A"}],
+      "title":"Reported client CPU utilization",
+      "type":"timeseries"
+    },
+    {
+      "datasource": {"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults":{"unit":"bytes"},"overrides":[]},
+      "gridPos":{"h":8,"w":12,"x":12,"y":8},
+      "id":4,
+      "options":{"legend":{"displayMode":"list","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},
+      "targets":[{"expr":"nli_controller_memory_alloc_bytes","legendFormat":"Go heap allocated","refId":"A"},{"expr":"nli_controller_memory_sys_bytes","legendFormat":"Go runtime system memory","refId":"B"}],
+      "title":"Controller Go memory",
+      "type":"timeseries"
+    },
+    {
+      "datasource": {"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults":{"unit":"records/s"},"overrides":[]},
+      "gridPos":{"h":8,"w":24,"x":0,"y":16},
+      "id":5,
+      "options":{"legend":{"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},
+      "targets":[{"expr":"sum by (node_id, source) (nli_stream_normalized_per_second)","legendFormat":"{{node_id}} / {{source}}","refId":"A"}],
+      "title":"Observed stream normalization rate",
+      "type":"timeseries"
+    }
+  ],
+  "refresh":"30s",
+  "schemaVersion":39,
+  "tags":["nli","metrics"],
+  "templating":{"list":[{"current":{},"hide":0,"includeAll":false,"label":"Prometheus","name":"DS_PROMETHEUS","options":[],"query":"prometheus","refresh":1,"regex":"","type":"datasource"}]},
+  "time":{"from":"now-1h","to":"now"},
+  "timepicker":{},
+  "timezone":"browser",
+  "title":"NLI Operations",
+  "uid":"nli-operations",
+  "version":1
+}

@@ -90,6 +90,13 @@ Use this checklist after installing the matching controller and client RPMs and 
 3. Restart the client service and controller in the test environment. Verify client status transitions through stale/offline and back to live using actual heartbeat time; verify audit chain and metadata health remain valid.
 4. For each error shown, capture its source, time, affected node/source/stage, diagnostic code, and recovery action. Verify the same cause is visible in Status of All Communication or Monitoring where the backend contract exposes it.
 
+## 8. Input-path rollout and dashboard history
+
+1. Create or edit an input-path profile as a draft, submit it, approve it as a different reviewer, and publish it. Verify the rollout endpoint rejects the profile before publication.
+2. Propose the active profile for exactly one enrolled client and confirm only that node is targeted. Also verify selected multi-client and all-eligible target modes remain available. Confirm the proposal enters `pending_approval` and creates live commands only after independent rollout approval.
+3. Read `GET /api/v1/rollouts` before and after approval. Confirm `pending_approval_count` decreases and the acted-on proposal stays in history. Confirm proposal and approval are present in the audit log.
+4. Compare `canonical_history` one-minute count deltas with the client cumulative counters for the same interval. Confirm canonical buckets persist across controller restart. Treat parse/AI metadata series as bounded in-memory measurements and host metrics as current samples; do not use them as durable event history.
+
 ## Release sign-off record
 
 | Check | Result | Evidence filename | Notes |

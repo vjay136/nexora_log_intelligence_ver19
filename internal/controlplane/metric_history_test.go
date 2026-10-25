@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,7 +167,7 @@ func TestMetricHistoryZeroTrafficPersistenceAndRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	var encoded metricHistoryFile
-	if err := json.Unmarshal(data, &encoded); err != nil || len(encoded.Buckets) != 2 || len(encoded.Sources) != 2 {
+	if err := json.Unmarshal(data, &encoded); err != nil || len(encoded.Buckets) != 1 || len(encoded.Sources) != 2 {
 		t.Fatalf("persisted buckets: %s (%v)", data, err)
 	}
 	reloaded, err := newMetricHistory(path)
@@ -193,5 +195,112 @@ func TestMetricHistoryZeroTrafficPersistenceAndRetention(t *testing.T) {
 	reloaded.mu.Unlock()
 	if exists {
 		t.Fatal("expired bucket retained")
+	}
+}
+
+func TestMetricHistoryYearRangePersistsAndSkipsIdleBuckets(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.json")
+	h, err := newMetricHistory(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().UTC().AddDate(-2, 0, 0).Truncate(time.Minute)
+	sample := telemetry.StreamFileTelemetry{NodeID: "long-lived", Source: "source", ProcessGeneration: "gen-1", ReadLines: 900, Normalized: 850}
+	if err := h.observe([]telemetry.StreamFileTelemetry{sample}, old); err != nil {
+		t.Fatal(err)
+	}
+	sample.ReadLines += 10
+	sample.Normalized += 9
+	if err := h.observe([]telemetry.StreamFileTelemetry{sample}, old.Add(61*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.observe([]telemetry.StreamFileTelemetry{sample}, old.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := newMetricHistory(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := reloaded.window(old, old.Add(3*time.Minute), time.Minute)
+	if len(got) != 3 || got[0].Read != 900 || got[1].Read != 10 || got[2].Read != 0 {
+		t.Fatalf("two-year persisted canonical counts: %+v", got)
+	}
+	if _, _, ok := reloaded.bounds(); !ok {
+		t.Fatal("historical bounds missing after reload")
+	}
+}
+
+func TestMetricsTimeSeriesSupportsCustomBoundsAndAutoStep(t *testing.T) {
+	f := newAPIFixture(t)
+	from := time.Now().UTC().Add(-3 * time.Hour).Truncate(time.Minute)
+	to := from.Add(4 * time.Minute)
+	sample := telemetry.StreamFileTelemetry{NodeID: "custom", Source: "s", ProcessGeneration: "gen-1", ReadLines: 1200, Normalized: 1170, Quarantined: 30, Errors: 4}
+	if err := f.server.metricHistory.observe([]telemetry.StreamFileTelemetry{sample}, from.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	response, data := f.request(http.MethodGet, "/api/v1/metrics/timeseries?from="+from.Format(time.RFC3339)+"&to="+to.Format(time.RFC3339)+"&step=auto", nil)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("custom timeseries status=%d: %s", response.StatusCode, data)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["range"] != "custom" || result["from"] != from.Format(time.RFC3339) || result["to"] != to.Format(time.RFC3339) {
+		t.Fatalf("custom bounds not preserved: %#v", result)
+	}
+	history := result["canonical_history"].(map[string]any)
+	points := history["points"].([]any)
+	var read string
+	for _, raw := range points {
+		p := raw.(map[string]any)
+		if p["read_delta"] == "1200" {
+			read, _ = p["read_delta"].(string)
+			if p["parsed_delta"] != "1170" || p["quarantine_delta"] != "30" {
+				t.Fatalf("custom exact counts: %#v", p)
+			}
+		}
+	}
+	if read != "1200" {
+		t.Fatalf("custom canonical measurement missing: %s", data)
+	}
+	if _, _, ok := parseHistoricalRange("1y", time.Now(), time.Time{}); !ok {
+		t.Fatal("1y range rejected")
+	}
+	if _, _, _, ok := queryTimeBounds(url.Values{"range": []string{"10y"}}, f.server.metricHistory, time.Now().UTC()); !ok {
+		t.Fatal("10y range rejected across leap years")
+	}
+	if _, _, ok := parseHistoricalRange("all", time.Now(), from); !ok {
+		t.Fatal("all range rejected")
+	}
+}
+
+func TestMetricCatalogAndOpenMetricsExposeAddressableDescriptorsWithoutFakeClientSamples(t *testing.T) {
+	catalog := buildMetricCatalog()
+	if catalog.AddressableSeriesFloor < 1000 || catalog.DescriptorCount != len(catalog.Descriptors) {
+		t.Fatalf("catalog series addressability: %+v", catalog)
+	}
+	groups := map[string]bool{}
+	for _, descriptor := range catalog.Descriptors {
+		groups[descriptor.Group] = true
+		if descriptor.Name == "" || descriptor.Type == "" || descriptor.Source == "" {
+			t.Fatalf("incomplete descriptor: %+v", descriptor)
+		}
+	}
+	if !groups["controller"] || !groups["client"] {
+		t.Fatalf("metric groups absent: %+v", groups)
+	}
+	f := newAPIFixture(t)
+	response, data := f.request(http.MethodGet, "/api/v1/metrics/openmetrics", nil)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("OpenMetrics status=%d: %s", response.StatusCode, data)
+	}
+	if !strings.Contains(string(data), "nli_controller_cpu_cores ") || strings.Contains(string(data), "nli_client_cpu_percent{") {
+		t.Fatalf("export has missing controller value or fabricated client values: %s", data)
+	}
+	f.server.streamTelemetry.Publish(telemetry.StreamFileTelemetry{NodeID: "n", Source: "s", ReadLines: 9007199254740993, UpdatedAt: time.Now().UTC()})
+	response, data = f.request(http.MethodGet, "/api/v1/metrics/openmetrics", nil)
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(data), "nli_stream_read_lines_total{node_id=\"n\",source=\"s\"} 9007199254740993") {
+		t.Fatalf("OpenMetrics rounded canonical uint64 count: status=%d body=%s", response.StatusCode, data)
 	}
 }

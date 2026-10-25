@@ -31,6 +31,7 @@ rollouts, telemetry APIs, and the byte-verified webview_ver19 console.
 %install
 install -d %{buildroot}%{_bindir} %{buildroot}%{_sbindir} %{buildroot}%{_sysconfdir}/nli
 install -d %{buildroot}/usr/lib/systemd/system %{buildroot}%{_datadir}/nli/webview_ver19 %{buildroot}%{_datadir}/nli/supabase
+install -d %{buildroot}%{_datadir}/nli/metrics
 install -d %{buildroot}%{_docdir}/%{name} %{buildroot}/var/lib/nli-controller
 install -m 0755 bin/nli-controller-agent bin/nli %{buildroot}%{_bindir}/
 install -m 0755 sbin/nli-controller-setup %{buildroot}%{_sbindir}/nli-controller-setup
@@ -43,6 +44,7 @@ cp -a web/. %{buildroot}%{_datadir}/nli/webview_ver19/
 find %{buildroot}%{_datadir}/nli/webview_ver19 -type d -exec chmod 0755 {} +
 find %{buildroot}%{_datadir}/nli/webview_ver19 -type f -exec chmod 0644 {} +
 install -m 0644 README.md %{buildroot}%{_docdir}/%{name}/README.md
+install -m 0644 metrics/README.md metrics/metric-catalog.json metrics/prometheus-scrape.yml metrics/grafana-dashboard.json %{buildroot}%{_datadir}/nli/metrics/
 
 %pre
 getent group nli >/dev/null || groupadd -r nli
@@ -90,10 +92,18 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %attr(0644,root,root) %{_datadir}/nli/webview_ver19/*
 %dir %attr(0755,root,root) %{_datadir}/nli/supabase
 %attr(0644,root,root) %{_datadir}/nli/supabase/nli_schema.sql
+%dir %attr(0755,root,root) %{_datadir}/nli/metrics
+%attr(0644,root,root) %{_datadir}/nli/metrics/README.md
+%attr(0644,root,root) %{_datadir}/nli/metrics/metric-catalog.json
+%attr(0644,root,root) %{_datadir}/nli/metrics/prometheus-scrape.yml
+%attr(0644,root,root) %{_datadir}/nli/metrics/grafana-dashboard.json
 %dir %attr(0750,nli,nli) /var/lib/nli-controller
 %doc %{_docdir}/%{name}/README.md
 
 %changelog
+* Sun Oct 25 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-5
+- Ship the bounded client and controller metrics catalog, Prometheus example, and Grafana dashboard.
+
 * Sun Oct 25 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-4
 - Add persisted bounded telemetry buckets for the Overall Timeline dashboard
 - Support revisioned single or multiple input-path profile rollouts with independent approval

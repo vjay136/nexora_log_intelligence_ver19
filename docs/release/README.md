@@ -1,6 +1,37 @@
 # NLI v19 release infrastructure
 
-## Release 19.0.0-4
+## Release 19.0.0-5
+
+Release 5 makes the input-path approval stages explicit: a profile must be
+submitted, independently approved, and published before it can be proposed
+for rollout. Single-client, selected multi-client, and all-eligible target
+modes remain supported. The rollout proposal still requires a different
+authorized operator to approve it. The rollouts API
+reports how many proposals are awaiting approval; approved and cancelled
+proposals remain in history but no longer count as pending.
+
+The dashboard history contract distinguishes retained canonical counters from
+short-lived metadata series. `canonical_history` contains all-source read,
+parsed, quarantined, and error deltas in persisted one-minute buckets retained
+for up to ten years. It is derived from the latest cumulative client counters
+and survives controller restart. Other `points` fields such as parse latency,
+parse rate, and AI request counts come from bounded in-memory event metadata;
+they are not durable customer event history. Per-client heartbeat host metrics
+are current samples, and unavailable measurements stay unavailable. Metric
+history does not retain raw logs, parsed payloads, or secrets. Range queries
+are limited to at most 1000 buckets.
+
+These notes describe implementation behavior; they do not claim release
+acceptance, production capacity, or completed deployment qualification.
+
+### Operator acceptance for release 5
+
+1. Create and edit an input-path draft, submit it, approve it as a different reviewer, and publish it. Confirm rollout is rejected before publication.
+2. Propose the published profile for one enrolled client and confirm the target list contains exactly that client. Also verify selected multi-client and all-eligible proposals retain their existing target modes. The proposal is pending until an independent rollout approver acts.
+3. Check `GET /api/v1/rollouts` before and after approval. `pending_approval_count` must decrease while the approved proposal remains in history. Verify the audit log identifies the author and independent approver.
+4. Compare dashboard canonical minute totals with client counter deltas over the same interval. Refresh or restart the controller and confirm aggregate buckets persist. Treat bounded metadata series and current heartbeat samples as separate, non-durable measurements.
+
+## Previous release: 19.0.0-4
 
 Release 4 removes the avoidable final-row delay for line-oriented `auto` input while retaining explicit Java, Python, and Go stack-trace grouping and exactly-once restart checkpoints. It adds retained, bounded aggregate buckets for Overall Timeline History and lets operators add, edit, remove, validate, and independently approve rollouts containing one or many input paths. The UI keeps open controls mounted while canonical telemetry continues in the background.
 
@@ -27,7 +58,7 @@ Operational additions include queued SMTP and PagerDuty notifications, persisten
 
 Use `V19_PRODUCTION_ACCEPTANCE_TESTS.md` for the exact 49-record acceptance test and `V19_OPERATOR_DEMO_GUIDE.md` for the complete tab-by-tab demonstration. `V19_SUBSYSTEM_ORCHESTRATION.md` explains which subsystems run on ordinary traffic and which run only during evidence-gated recovery.
 
-This directory documents the only supported V19 release path. It builds source-derived static Linux binaries in a digest-pinned Go image, creates genuine RPMs with `rpmbuild` in a digest-pinned Rocky image, performs a two-pass byte-for-byte reproducibility check, and emits checksums, SPDX SBOM, release manifest, binary provenance, and an in-toto/SLSA provenance statement.
+This directory documents the supported V19 release path. It builds source-derived static Linux binaries in a digest-pinned Go image, creates genuine RPMs with `rpmbuild` in a digest-pinned Rocky image, performs a two-pass byte-for-byte reproducibility check, and emits checksums, SPDX SBOM, release manifest, binary provenance, and an in-toto/SLSA provenance statement.
 
 ## Safety and prerequisites
 

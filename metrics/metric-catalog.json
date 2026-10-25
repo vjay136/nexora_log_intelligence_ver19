@@ -1,0 +1,393 @@
+{
+  "schema_version": "1",
+  "descriptor_count": 26,
+  "addressable_series_floor": 19000,
+  "addressability_explanation": "Each of the 19 client descriptors can address 1,000 observed node_id values. This is dimensional addressability, not a count of live clients or measurements. Stream series also vary by observed source and phase. Only live measurements are exported.",
+  "endpoints": {
+    "client": {
+      "path": "/metrics",
+      "format": "Prometheus text 0.0.4",
+      "address_config": "/etc/nli/nli.json:metrics_address",
+      "default_address": "127.0.0.1:12380",
+      "authentication": "None; listener is restricted to a loopback address"
+    },
+    "controller_catalog": {
+      "path": "/api/v1/metrics/catalog",
+      "format": "JSON",
+      "authentication": "Bearer token with telemetry read permission"
+    },
+    "controller_samples": {
+      "path": "/api/v1/metrics/openmetrics",
+      "format": "OpenMetrics 1.0.0",
+      "authentication": "Bearer token with telemetry read permission"
+    }
+  },
+  "descriptors": [
+    {
+      "name": "nli_controller_cpu_cores",
+      "group": "controller",
+      "type": "gauge",
+      "help": "Logical CPUs available to the controller process.",
+      "labels": [],
+      "unit": "cores",
+      "source": "runtime.NumCPU"
+    },
+    {
+      "name": "nli_controller_memory_alloc_bytes",
+      "group": "controller",
+      "type": "gauge",
+      "help": "Bytes allocated and currently in use by the Go heap.",
+      "labels": [],
+      "unit": "bytes",
+      "source": "runtime.MemStats.Alloc"
+    },
+    {
+      "name": "nli_controller_memory_sys_bytes",
+      "group": "controller",
+      "type": "gauge",
+      "help": "Bytes obtained from the operating system by the Go runtime.",
+      "labels": [],
+      "unit": "bytes",
+      "source": "runtime.MemStats.Sys"
+    },
+    {
+      "name": "nli_controller_goroutines",
+      "group": "controller",
+      "type": "gauge",
+      "help": "Current number of Go goroutines.",
+      "labels": [],
+      "unit": "goroutines",
+      "source": "runtime.NumGoroutine"
+    },
+    {
+      "name": "nli_controller_gc_pause_seconds_total",
+      "group": "controller",
+      "type": "counter",
+      "help": "Cumulative garbage collection pause time.",
+      "labels": [],
+      "unit": "seconds",
+      "source": "runtime.MemStats.PauseTotalNs"
+    },
+    {
+      "name": "nli_controller_gc_cycles_total",
+      "group": "controller",
+      "type": "counter",
+      "help": "Completed garbage collection cycles.",
+      "labels": [],
+      "unit": "cycles",
+      "source": "runtime.MemStats.NumGC"
+    },
+    {
+      "name": "nli_controller_uptime_seconds",
+      "group": "controller",
+      "type": "gauge",
+      "help": "Seconds since controller process startup.",
+      "labels": [],
+      "unit": "seconds",
+      "source": "controller startup clock"
+    },
+    {
+      "name": "nli_client_cpu_percent",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest reported host CPU utilization.",
+      "labels": [
+        "node_id",
+        "hostname"
+      ],
+      "unit": "percent",
+      "source": "latest heartbeat with host_metrics_available"
+    },
+    {
+      "name": "nli_client_memory_bytes",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest reported host memory usage.",
+      "labels": [
+        "node_id",
+        "hostname"
+      ],
+      "unit": "bytes",
+      "source": "latest heartbeat with host_metrics_available"
+    },
+    {
+      "name": "nli_client_memory_percent",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest reported host memory utilization.",
+      "labels": [
+        "node_id",
+        "hostname"
+      ],
+      "unit": "percent",
+      "source": "latest heartbeat with host_metrics_available"
+    },
+    {
+      "name": "nli_client_load_1m",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest reported one-minute system load.",
+      "labels": [
+        "node_id",
+        "hostname"
+      ],
+      "source": "latest heartbeat with host_metrics_available"
+    },
+    {
+      "name": "nli_client_load_5m",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest reported five-minute system load.",
+      "labels": [
+        "node_id",
+        "hostname"
+      ],
+      "source": "latest heartbeat with host_metrics_available"
+    },
+    {
+      "name": "nli_client_load_15m",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest reported fifteen-minute system load.",
+      "labels": [
+        "node_id",
+        "hostname"
+      ],
+      "source": "latest heartbeat with host_metrics_available"
+    },
+    {
+      "name": "nli_client_parse_latency_ms",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest reported parse latency.",
+      "labels": [
+        "node_id",
+        "hostname"
+      ],
+      "unit": "milliseconds",
+      "source": "latest heartbeat"
+    },
+    {
+      "name": "nli_stream_read_lines_per_second",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest source-reported read rate.",
+      "labels": [
+        "node_id",
+        "source",
+        "phase"
+      ],
+      "unit": "lines/second",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_normalized_per_second",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest source-reported normalization rate.",
+      "labels": [
+        "node_id",
+        "source",
+        "phase"
+      ],
+      "unit": "records/second",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_quarantined_per_second",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest source-reported quarantine rate.",
+      "labels": [
+        "node_id",
+        "source",
+        "phase"
+      ],
+      "unit": "records/second",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_bytes_per_second",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest source-reported byte rate.",
+      "labels": [
+        "node_id",
+        "source",
+        "phase"
+      ],
+      "unit": "bytes/second",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_read_lines_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Latest source cumulative lines read.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "lines",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_normalized_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Latest source cumulative normalized records.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "records",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_quarantined_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Latest source cumulative quarantined records.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "records",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_errors_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Latest source cumulative errors.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "errors",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_queue_depth",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest reported source queue depth.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "records",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_queue_capacity",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest reported source queue capacity.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "records",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_source_workers",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest reported source worker count.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "workers",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_backpressure",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest backpressure state, one active and zero inactive.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "boolean",
+      "source": "latest stream telemetry"
+    }
+  ],
+  "client_descriptors": [
+    {
+      "name": "nli_logs_received_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Log lines received by this client agent.",
+      "labels": [],
+      "source": "client agent counters",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_logs_parsed_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Log lines parsed by this client agent.",
+      "labels": [],
+      "source": "client agent counters",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_logs_quarantined_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Log lines quarantined by this client agent.",
+      "labels": [],
+      "source": "client agent counters",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_logs_filtered_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Log lines filtered by this client agent.",
+      "labels": [],
+      "source": "client agent counters",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_input_errors_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Input processing failures observed by this client agent.",
+      "labels": [],
+      "source": "client agent counters",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_ai_pending_clusters",
+      "group": "client",
+      "type": "gauge",
+      "help": "AI discovery clusters currently pending on this client agent.",
+      "labels": [],
+      "source": "client discovery statistics",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_ai_pending_dropped_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Pending AI discovery clusters dropped by this client agent.",
+      "labels": [],
+      "source": "client discovery statistics",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_ai_samples_truncated_total",
+      "group": "client",
+      "type": "counter",
+      "help": "AI discovery samples truncated by this client agent.",
+      "labels": [],
+      "source": "client discovery statistics",
+      "endpoint": "client"
+    }
+  ]
+}

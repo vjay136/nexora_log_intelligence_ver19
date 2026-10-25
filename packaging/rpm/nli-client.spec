@@ -34,6 +34,7 @@ is a byte-identical distribution filename alias, not a second RPM package.
 %install
 install -d %{buildroot}%{_bindir} %{buildroot}%{_sbindir} %{buildroot}%{_sysconfdir}/nli/parsers
 install -d %{buildroot}/usr/lib/systemd/system %{buildroot}%{_docdir}/%{name}
+install -d %{buildroot}%{_datadir}/nli/metrics
 install -d %{buildroot}/var/lib/nli/parsers/quarantine %{buildroot}/var/lib/nli/parser-assets %{buildroot}/var/lib/nli/spool
 install -d %{buildroot}/var/lib/nli-control-client %{buildroot}/var/cache/nli/packages
 install -d %{buildroot}/var/log/nli/input %{buildroot}/var/log/nli/output
@@ -51,6 +52,7 @@ install -m 0644 configs/outputs.example.json %{buildroot}%{_docdir}/%{name}/outp
 install -m 0644 systemd/nli-agent.service systemd/nli-client-control.service systemd/nli-client-bootstrap.service %{buildroot}/usr/lib/systemd/system/
 install -m 0644 README.md %{buildroot}%{_docdir}/%{name}/README.md
 install -m 0644 PARSER_CATALOG.md %{buildroot}%{_docdir}/%{name}/PARSER_CATALOG.md
+install -m 0644 metrics/README.md metrics/metric-catalog.json metrics/prometheus-scrape.yml metrics/grafana-dashboard.json %{buildroot}%{_datadir}/nli/metrics/
 
 %pre
 getent group nli >/dev/null || groupadd -r nli
@@ -96,6 +98,12 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %dir %attr(0750,nli,nli) /var/lib/nli/parsers/quarantine
 %dir %attr(0750,root,nli) /var/lib/nli/parser-assets
 %dir %attr(0750,nli,nli) /var/lib/nli/spool
+%dir %attr(0755,root,root) %{_datadir}/nli
+%dir %attr(0755,root,root) %{_datadir}/nli/metrics
+%attr(0644,root,root) %{_datadir}/nli/metrics/README.md
+%attr(0644,root,root) %{_datadir}/nli/metrics/metric-catalog.json
+%attr(0644,root,root) %{_datadir}/nli/metrics/prometheus-scrape.yml
+%attr(0644,root,root) %{_datadir}/nli/metrics/grafana-dashboard.json
 %dir %attr(0750,root,nli) /var/lib/nli-control-client
 %dir %attr(0750,root,nli) /var/cache/nli
 %dir %attr(0750,root,nli) /var/cache/nli/packages
@@ -108,6 +116,9 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/PARSER_CATALOG.md
 
 %changelog
+* Sun Oct 25 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-5
+- Ship the bounded client and controller metrics catalog, Prometheus example, and Grafana dashboard.
+
 * Sun Oct 25 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-4
 - Emit independent auto-family JSON log rows immediately while preserving stack-trace grouping and exactly-once checkpoints
 - Add retained aggregate timeline history and multi-path input editing, validation, and rollout coverage

@@ -513,6 +513,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/quarantine/history", guard(middleware.PermissionReadLogs, s.handleQuarantineHistory))
 	s.mux.HandleFunc("/api/v1/quarantine/reprocess", guard(middleware.PermissionTriggerRollout, s.handleQuarantineReprocess))
 	s.mux.HandleFunc("/api/v1/metrics/timeseries", guard(middleware.PermissionReadTelemetry, s.handleMetricsTimeSeries))
+	s.mux.HandleFunc("/api/v1/metrics/catalog", guard(middleware.PermissionReadTelemetry, s.handleMetricCatalog))
+	s.mux.HandleFunc("/api/v1/metrics/openmetrics", guard(middleware.PermissionReadTelemetry, s.handleOpenMetrics))
 	s.mux.HandleFunc("/api/v1/verification/sample-corpus", guard(middleware.PermissionReadParsers, s.handleSampleCorpusVerification))
 	s.mux.HandleFunc("/api/v1/parser-sync", s.handleParserSync)
 	s.mux.HandleFunc("/api/v1/parser-sync/", s.handleParserSync)
@@ -963,8 +965,8 @@ func (s *Server) handleDashboardSnapshot(w http.ResponseWriter, r *http.Request)
 		jsonError(w, "GET required", http.StatusMethodNotAllowed)
 		return
 	}
-	if _, ok := parseMetricDuration(r.URL.Query().Get("range"), map[string]time.Duration{"1h": time.Hour, "6h": 6 * time.Hour, "24h": 24 * time.Hour, "7d": 7 * 24 * time.Hour, "30d": 30 * 24 * time.Hour}, time.Hour); !ok {
-		jsonError(w, "range must be one of 1h, 6h, 24h, 7d or 30d", http.StatusBadRequest)
+	if _, _, _, ok := queryTimeBounds(r.URL.Query(), s.metricHistory, time.Now().UTC()); !ok {
+		jsonError(w, "range must be a valid duration or from/to RFC3339 pair", http.StatusBadRequest)
 		return
 	}
 	query := r.URL.Query()

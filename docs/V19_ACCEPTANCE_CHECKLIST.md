@@ -1,6 +1,8 @@
 # NLI Ver19 acceptance checklist
 
-Updated: 2026-10-23
+Updated: 2026-10-25
+
+Current package identity: `19.0.0-5`. Release 5 adds a submitted/approved/published input-path profile gate, one-client rollout targeting, a pending rollout approval count, and documented canonical metric-history behavior. This note does not mark full release acceptance.
 
 | Gate | State | Evidence or remaining action |
 | Operator and manager demo guide covers current navigation and sync behavior | PASS | `docs/V19_OPERATOR_DEMO_GUIDE.md`; `tests/v19-operator-guide.test.js` checks `NAV` IDs/titles |

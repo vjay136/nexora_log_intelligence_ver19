@@ -21,6 +21,9 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
   const inputProfiles = [];
   const inputRolloutSaves = [];
   const rolloutSaves = [];
+  const rolloutProposals = [];
+  const historyQueries = [];
+  const historyCounts = {};
   const users = [];
   const auditEvents = [];
   const notificationPolicySaves = [];
@@ -77,7 +80,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
     if (path === '/api/v1/quarantine/records') return fulfill({ records: [{ id: 'q-1', node_id: 'node-1', service: 'smtp', first_seen: '2026-10-10T00:00:00Z', attempt_count: 2, status: 'waiting', error_codes: ['no_match'], raw_available: true }] });
     if (path === '/api/v1/quarantine/history') return fulfill({ events: [] });
     if (path === '/api/v1/quarantine/reprocess' && request.method() === 'POST') return fulfill({ rollout_id: 'replay-1', status: 'pending' }, 202);
-    if (path.startsWith('/api/v1/metrics/timeseries')) return fulfill({ points: [] });
+    if (path.startsWith('/api/v1/metrics/timeseries')) { const params=new URL(request.url()).searchParams;historyQueries.push(params);const key=params.toString(),call=historyCounts[key]=(historyCounts[key]||0)+1,read=key.includes('range=24h')&&call>1?'42':'9007199254740993',parsed=read==='42'?'40':'9007199254740990'; return fulfill({ from: '2026-10-25T00:00:00Z', to: '2026-10-25T01:00:00Z', canonical_history: { bucket_width_seconds: 60, points: [{timestamp:'2026-10-25T00:59:00Z',read_delta:read,parsed_delta:parsed,quarantine_delta:'2',errors:1}] }, points: [{ timestamp: '2026-10-25T00:59:00Z', received: read, parsed, quarantine: 2, errors: 1, logs_received: read, logs_parsed: parsed, logs_quarantined: 2 }] }); }
     if (path === '/api/v1/verification/sample-corpus') return fulfill({ verdict: 'pass', known_key_inventory: { declared_family_keys: 278, covered_family_keys: 278, unmapped_family_keys: 0 }, totals: { records: 728, accounted_records: 728, parsed_records: 723, exact_parity_records: 723, failing_records: 0, expected_quarantined_records: 5, unexpected_quarantined_records: 0, parsed_comparable_raw_fields: 13101, parsed_generated_json_fields: 13101 }, families: [{ family: 'IMAP', records: 52, passing_records: 52, comparable_raw_fields: 1154, generated_json_fields: 1154, duplicate_occurrences: 0 }], records: [{ corpus: 'samples.log', source_line: 50, family: 'SMTP-OUT', expected_disposition: 'quarantined', disposition_reason: 'truncated record', record_sha256: 'a'.repeat(64) }] });
     if (path === '/api/v1/admin/ai-usage') return fulfill({ requests: 0, tokens: 0, pending_drafts: 0 });
     if (path === '/api/v1/fleet/sync') return fulfill({ nodes: [{ node: { id: 'node-1', hostname: 'mail-node-1', status: 'online', last_seen: '2026-10-17T05:00:00Z' }, sync: { drifted: false } }] });
@@ -90,6 +93,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
     if (path === '/api/v1/config/output-destinations' && request.method() === 'POST') { outputSaves.push(request.postDataJSON()); return fulfill({ id: 'customer-output', state: 'draft', revision: 1 }); }
     if (path === '/api/v1/config/output-destinations') return fulfill({ items: outputProfiles, count: outputProfiles.length });
     if (path.startsWith('/api/v1/config/output-destinations/')) { const item=outputProfiles.find(profile=>path.endsWith(`/${profile.id}`));return item?fulfill(item):fulfill({error:'not found'},404); }
+    if (path.match(/^\/api\/v1\/config\/input-paths\/[^/]+\/(submit|approve|publish)$/) && request.method() === 'POST') { const [,id,action]=path.match(/^\/api\/v1\/config\/input-paths\/([^/]+)\/(submit|approve|publish)$/),doc=inputProfiles.find(item=>item.id===id);if(!doc)return fulfill({error:'not found'},404);doc.state=({submit:'in_review',approve:'approved',publish:'active'})[action];return fulfill({id,state:doc.state,revision:doc.revision}); }
     if (path === '/api/v1/config/input-paths' && request.method() === 'POST') { inputSaves.push(request.postDataJSON()); return fulfill({ id: 'mail-paths', state: 'draft', revision: 1 }); }
     if (path === '/api/v1/config/input-paths') return fulfill({ items: inputProfiles, count: inputProfiles.length });
     if (path.match(/^\/api\/v1\/config\/input-paths\/[^/]+\/rollout$/) && request.method() === 'POST') { inputRolloutSaves.push({ path, body: request.postDataJSON() }); return fulfill({ id: `input-proposal-${inputRolloutSaves.length}`, state: 'pending_approval' }, 201); }
@@ -98,7 +102,8 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
     if (path.startsWith('/api/v1/config/')) return fulfill({ items: [] });
     if (path === '/api/v1/metadata') return fulfill({ records: [], stats: {}, payload_retained: false });
     if (path === '/api/v1/rollouts' && request.method() === 'POST') { rolloutSaves.push(request.postDataJSON()); return fulfill({ id: 'proposal-test', state: 'pending_approval' }, 201); }
-    if (path === '/api/v1/rollouts') return fulfill({ proposals: [], live: [] });
+    if (path.match(/^\/api\/v1\/rollouts\/[^/]+\/(approve|cancel)$/) && request.method() === 'POST') { const [,id,action]=path.match(/^\/api\/v1\/rollouts\/([^/]+)\/(approve|cancel)$/),item=rolloutProposals.find(doc=>doc.id===id);if(item)item.state=action==='approve'?'approved':'cancelled';return fulfill({status:item?.state||action}); }
+    if (path === '/api/v1/rollouts') return fulfill({ proposals: rolloutProposals, live: [] });
     if (path === '/api/v1/artifacts') return fulfill({ artifacts: [], signing_keys_configured: 0 });
     if (path === '/api/v1/rbac/roles') return fulfill({ roles: { viewer: ['assurance:run'], admin: ['*'] } });
     if (path === '/api/v1/users') return fulfill({ users });
@@ -112,7 +117,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
     if (path === '/api/v1/system') return fulfill({ version: '19.0.0', health: 'ok', storage: { mode: 'supabase', status: 'connected' }, security: { audit_chain: 'ok' } });
     return fulfill({ error: `Unmocked API: ${path}` }, 500);
   });
-  return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, assuranceRuns, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves, users, auditEvents, notificationPolicySaves };
+  return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, assuranceRuns, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves, rolloutProposals, historyQueries, users, auditEvents, notificationPolicySaves };
 }
 
 async function login(page) {
@@ -140,7 +145,7 @@ test('all workspaces render and audit is visible', async ({ page }) => {
     await expect(page.locator('.error-state')).toHaveCount(0);
     await expect(page.locator('#page')).not.toContainText('undefined');
     if (tab === 'fleet') await expect(page.getByText('mail-node-1')).toBeVisible();
-    if (tab === 'operations') await expect(page.getByRole('heading', { name: 'Parsing Operations Center' })).toBeVisible();
+    if (tab === 'operations') await expect(page.locator('#page').getByRole('heading', { name: 'Command Center' })).toBeVisible();
     if (tab === 'api-monitor') await expect(page.getByRole('heading', { name: 'API monitor', exact: true })).toBeVisible();
     if (tab === 'unknowns') await expect(page.getByRole('heading', { name: 'Quarantine and reprocessing' })).toBeVisible();
     if (tab === 'parsers') await expect(page.getByText('SMTP parser', { exact: true }).first()).toBeVisible();
@@ -159,7 +164,7 @@ test('one canonical synchronization snapshot feeds Command Center, NHLE, NAPI an
   await mockController(page);
   await login(page);
   await expect(page.getByTestId('live-dashboard-kpis')).toContainText('120');
-  await expect(page.locator('.chart-legend').first()).toContainText('Input (records)');
+  await expect(page.locator('.chart-legend').first()).toContainText('Input (records / bucket)');
   const firstPoint=page.locator('[data-chart-category="Input"]').first();
   await expect(firstPoint).toBeVisible();
   const readout=await firstPoint.evaluate(point=>{
@@ -266,11 +271,11 @@ test('NUPIRE workspace displays an explicit empty candidate state', async ({ pag
   await expect(page.getByText('No candidates')).toHaveCount(5);
 });
 
-test('navigation groups command center, assurance, inputs and outputs in the requested order', async ({ page }) => {
+test('navigation leads with Command Center, Assurance Lab, approvals and notifications', async ({ page }) => {
   await mockController(page);
   await login(page);
   const ids=await page.locator('.nav-item').evaluateAll(items=>items.map(item=>item.dataset.page));
-  expect(ids.slice(0,12)).toEqual(['operations','monitoring','streams','sync-fabric','nhle-monitor','napi-monitor','nal-monitor','assurance','parser-workspace','nupire','field-integrity','ai']);
+  expect(ids.slice(0,12)).toEqual(['operations','monitoring','streams','assurance','rollouts','parser-sync','artifacts','parser-workspace','nupire','field-integrity','ai','notifications']);
   const input=ids.indexOf('input-paths'),output=ids.indexOf('outputs'),parsing=ids.indexOf('kv');
   expect(ids[input+1]).toBe('migration');
   expect(ids[input+2]).toBe('outputs');
@@ -434,7 +439,7 @@ test('V19 security identity and task navigation remain accessible', async ({ pag
   expect(await officialLogo.evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
   await login(page);
   const groups = await page.locator('.nav-group').allTextContents();
-  for (const group of ['INPUT', 'PARSING ENGINE', 'OUTPUT', 'ASSURANCE', 'ROLLOUTS & APPROVALS', 'CLIENT MANAGEMENT', 'CONTROLLER MANAGEMENT', 'PARSER MANAGEMENT']) {
+  for (const group of ['COMMAND CENTER','ASSURANCE & RELEASE','OPERATIONS','REAL-TIME SUBSYSTEMS','INPUT', 'PARSING ENGINE', 'OUTPUT', 'CLIENT MANAGEMENT', 'CONTROLLER MANAGEMENT', 'PARSER MANAGEMENT']) {
     expect(groups).toContain(group);
   }
   await page.getByTestId('nav-fleet').click();
@@ -467,7 +472,7 @@ test('streams render live per-node rates and file processing timings', async ({ 
   await expect(page.locator('#page')).toContainText('parser latency exceeded warning threshold');
 });
 
-test('operations reuses the canonical sync snapshot without a dashboard polling request', async ({ page }) => {
+test('operations reuses canonical sync and only fetches one aggregate history series', async ({ page }) => {
   const { observed } = await mockController(page);
   await login(page);
   const start = observed.length;
@@ -476,15 +481,17 @@ test('operations reuses the canonical sync snapshot without a dashboard polling 
   expect(requests.filter(item => item.startsWith('GET /api/v1/dashboard/snapshot'))).toHaveLength(0);
   // The shared snapshot recovery loop may race the navigation while the
   // mocked EventSource is opening.  It is the one permitted canonical
-  // fallback and must never fan out into page-specific dashboard polling.
+  // fallback. The retained timeline is one aggregate controller query; it
+  // must not fan out into fleet, metadata, system, or overview polling.
   expect(requests.filter(item => item === 'GET /api/v1/sync/snapshot').length).toBeLessThanOrEqual(1);
-  expect(requests.some(item => /GET \/api\/v1\/(overview|metadata\?|system|fleet\/sync|metrics\/timeseries)/.test(item))).toBe(false);
+  expect(requests.filter(item => item.startsWith('GET /api/v1/metrics/timeseries')).length).toBeLessThanOrEqual(1);
+  expect(requests.some(item => /GET \/api\/v1\/(overview|metadata\?|system|fleet\/sync)/.test(item))).toBe(false);
 });
 
 test('live dashboard renders controller metrics, client filter, pipeline timing and safe failures', async ({ page }) => {
   const { observed } = await mockController(page);
   await login(page);
-  await expect(page.getByRole('heading', { name: 'Parsing Operations Center' })).toBeVisible();
+  await expect(page.locator('#page').getByRole('heading', { name: 'Command Center' })).toBeVisible();
   await expect(page.getByTestId('live-dashboard-kpis')).toContainText('120');
   await expect(page.getByText('96.67% success')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Pipeline time travel' })).toBeVisible();
@@ -1054,6 +1061,73 @@ test('published input profile can be loaded and extended as a new draft revision
   await form.locator('[name=quick_path]').fill('/var/log/added.log');
   await form.getByRole('button',{name:'Add path with selected family'}).click();
   expect(JSON.parse(await form.locator('[name=config]').inputValue()).inputs.map(item=>item.path)).toEqual(['/var/log/existing.log','/var/log/added.log']);
+});
+
+test('Command Center supports long presets, custom timestamps, exact count hover, JSON view and download', async ({ page }) => {
+  const mock = await mockController(page);
+  await login(page);
+  const range=page.locator('#dashboard-range');
+  await expect(range.locator('option')).toContainText(['1 hour','6 hours','12 hours','24 hours','2 days','1 week','2 weeks','4 weeks','30 days','90 days','3 months','6 months','9 months','12 months','1 year','2 years','5 years','10 years','All retained history','Custom dates']);
+  await range.selectOption('all');
+  await expect.poll(()=>mock.historyQueries.some(query=>query.get('range')==='all'&&query.get('step')==='auto')).toBe(true);
+  await range.selectOption('custom');
+  await page.locator('#dashboard-from').fill('2026-09-01T08:00');
+  await page.locator('#dashboard-to').fill('2026-10-25T08:00');
+  await page.getByRole('button',{name:'Apply dates'}).click();
+  await expect.poll(()=>mock.historyQueries.some(query=>query.has('from')&&query.has('to')&&query.get('step')==='auto')).toBe(true);
+  await expect(page.locator('[data-chart-category="Input"]').first()).toHaveAttribute('data-chart-value','9007199254740993');
+  const point=page.locator('[data-chart-category="Input"]').first();
+  await point.focus();
+  await expect(page.locator('.chart-hover-readout').first()).toContainText('9,007,199,254,740,993');
+  await page.getByText('View returned JSON').click();
+  await expect(page.locator('.history-json pre')).toContainText('9007199254740993');
+  const download=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download JSON'}).click();
+  expect((await download).suggestedFilename()).toBe('nli-command-center-custom.json');
+});
+
+test('Command Center refreshes retained counts in place while keeping the selected range mounted', async ({ page }) => {
+  await page.clock.install();
+  const mock=await mockController(page);
+  await login(page);
+  const range=page.locator('#dashboard-range');
+  await expect(page.locator('[data-chart-category="Input"]').first()).toHaveAttribute('data-chart-value','9007199254740993');
+  await page.clock.fastForward(5000);
+  await expect(page.locator('[data-chart-category="Input"]').first()).toHaveAttribute('data-chart-value','42');
+  await expect(range).toHaveValue('24h');
+  expect(mock.historyQueries.filter(query=>query.get('range')==='24h')).toHaveLength(2);
+});
+
+test('pending approval nav badge follows controller state and clears after an action', async ({ page }) => {
+  const mock=await mockController(page);
+  mock.rolloutProposals.push({id:'approval-1',state:'pending_approval',created_by:'author',payload:{name:'Input rollout',type:'config_push'}});
+  await login(page);
+  await expect(page.locator('#approval-badge')).toHaveText('1');
+  await page.getByTestId('nav-rollouts').click();
+  await page.getByRole('button',{name:'Approve'}).click();
+  await expect(page.locator('#approval-badge')).toBeHidden();
+  await expect(page.locator('#page').getByText('approved', { exact: false }).first()).toBeVisible();
+});
+
+test('draft input profiles expose lifecycle actions and JSON without a dead rollout button', async ({ page }) => {
+  const mock=await mockController(page);
+  mock.inputProfiles.push({id:'draft-inputs',revision:1,state:'draft',payload:{name:'Draft inputs',config:{inputs:[{path:'/var/log/draft.log',service:'imap'}]}}});
+  await login(page);
+  await page.getByTestId('nav-input-paths').click();
+  const rollout=page.locator('#input-rollout-form');
+  await expect(rollout.getByRole('button',{name:'Request independent approval'})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'Submit for review'})).toBeVisible();
+  await page.getByRole('button',{name:'View / download JSON'}).click();
+  await expect(page.locator('#input-profile-detail')).toContainText('/var/log/draft.log');
+  const download=page.waitForEvent('download');
+  await page.locator('#input-profile-detail').getByRole('button',{name:'Download JSON',exact:true}).click();
+  expect((await download).suggestedFilename()).toBe('draft-inputs-input-profile.json');
+  await page.getByRole('button',{name:'Submit for review'}).click();
+  await expect(page.getByRole('button',{name:'Approve',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Approve',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Publish',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Publish',exact:true}).click();
+  await expect(rollout.locator('[name=profile_id]')).toContainText('Draft inputs · r1');
 });
 
 test('mobile navigation exposes all workspaces without horizontal page overflow', async ({ page }) => {

@@ -3,6 +3,7 @@ package controlplane
 import (
 	"math"
 	"net/http"
+	"net/url"
 	"runtime"
 	"sort"
 	"strconv"
@@ -116,23 +117,113 @@ func parseMetricDuration(value string, choices map[string]time.Duration, fallbac
 	return duration, ok
 }
 
+func parseHistoricalRange(value string, now time.Time, earliest time.Time) (time.Time, time.Time, bool) {
+	now = now.UTC()
+	if value == "" {
+		value = "1h"
+	}
+	if value == "90d" {
+		return now.Add(-90 * 24 * time.Hour), now, true
+	}
+	if value == "all" {
+		if earliest.IsZero() {
+			return now.Add(-time.Hour), now, true
+		}
+		return earliest, now, true
+	}
+	// Fixed ranges accept a count followed by h/d/w. Calendar ranges use
+	// AddDate, so month and year views follow calendar boundaries.
+	if len(value) > 1 {
+		unit := value[len(value)-1:]
+		if unit == "h" || unit == "d" || unit == "w" {
+			n, err := strconv.Atoi(value[:len(value)-1])
+			if err != nil || n < 1 || n > 24*365*10 {
+				return time.Time{}, time.Time{}, false
+			}
+			d := time.Duration(n) * time.Hour
+			if unit == "d" {
+				d *= 24
+			}
+			if unit == "w" {
+				d *= 24 * 7
+			}
+			return now.Add(-d), now, true
+		}
+		if unit == "y" || strings.HasSuffix(value, "mo") {
+			suffix := "y"
+			if strings.HasSuffix(value, "mo") {
+				suffix = "mo"
+			}
+			countText := strings.TrimSuffix(value, suffix)
+			n, err := strconv.Atoi(countText)
+			if err != nil || n < 1 || n > 10 {
+				return time.Time{}, time.Time{}, false
+			}
+			if suffix == "y" {
+				return now.AddDate(-n, 0, 0), now, true
+			}
+			return now.AddDate(0, -n, 0), now, true
+		}
+	}
+	aliases := map[string]time.Duration{"hour": time.Hour, "day": 24 * time.Hour, "week": 7 * 24 * time.Hour, "month": 30 * 24 * time.Hour, "year": 365 * 24 * time.Hour}
+	if d, ok := aliases[value]; ok {
+		return now.Add(-d), now, true
+	}
+	return time.Time{}, time.Time{}, false
+}
+
+func queryTimeBounds(query url.Values, history *metricHistory, now time.Time) (time.Time, time.Time, string, bool) {
+	fromText, toText := query.Get("from"), query.Get("to")
+	if (fromText == "") != (toText == "") {
+		return time.Time{}, time.Time{}, "", false
+	}
+	if fromText != "" {
+		from, err1 := time.Parse(time.RFC3339Nano, fromText)
+		to, err2 := time.Parse(time.RFC3339Nano, toText)
+		if err1 != nil || err2 != nil || !to.After(from) || to.Sub(from) > metricHistoryRetention || to.After(now.Add(time.Minute)) {
+			return time.Time{}, time.Time{}, "", false
+		}
+		return from.UTC(), to.UTC(), "custom", true
+	}
+	earliest, _, _ := history.bounds()
+	from, to, ok := parseHistoricalRange(query.Get("range"), now, earliest)
+	if ok && to.Sub(from) > metricHistoryRetention {
+		ok = false
+	}
+	return from, to, query.Get("range"), ok
+}
+
+func adaptiveMetricStep(span time.Duration) time.Duration {
+	choices := []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute, time.Hour, 6 * time.Hour, 24 * time.Hour, 7 * 24 * time.Hour, 30 * 24 * time.Hour}
+	for _, step := range choices {
+		if span/step <= 1000 {
+			return step
+		}
+	}
+	return choices[len(choices)-1]
+}
+
 func (s *Server) handleMetricsTimeSeries(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
 		jsonError(w, "GET required", http.StatusMethodNotAllowed)
 		return
 	}
-	ranges := map[string]time.Duration{"1h": time.Hour, "6h": 6 * time.Hour, "24h": 24 * time.Hour, "7d": 7 * 24 * time.Hour, "30d": 30 * 24 * time.Hour}
 	steps := map[string]time.Duration{"1m": time.Minute, "5m": 5 * time.Minute, "15m": 15 * time.Minute, "1h": time.Hour, "6h": 6 * time.Hour, "1d": 24 * time.Hour}
-	rangeName := r.URL.Query().Get("range")
 	stepName := r.URL.Query().Get("step")
-	window, ok := parseMetricDuration(rangeName, ranges, time.Hour)
-	if !ok {
-		jsonError(w, "range must be one of 1h, 6h, 24h, 7d or 30d", http.StatusBadRequest)
+	now := time.Now().UTC()
+	from, to, normalizedRange, ok := queryTimeBounds(r.URL.Query(), s.metricHistory, now)
+	if !ok || to.After(now.Add(time.Minute)) {
+		jsonError(w, "range must be an hour/day/week/month/year duration or all; from and to must be a valid UTC RFC3339 pair within retention", http.StatusBadRequest)
 		return
 	}
-	step, ok := parseMetricDuration(stepName, steps, time.Minute)
-	if !ok || step > window || window%step != 0 || int(window/step) > 1000 {
+	step := adaptiveMetricStep(to.Sub(from))
+	if stepName != "" && stepName != "auto" {
+		step, ok = parseMetricDuration(stepName, steps, time.Minute)
+	} else {
+		ok = true
+	}
+	if !ok || step > to.Sub(from) || int((to.Sub(from)+step-1)/step) > 1000 {
 		jsonError(w, "step is unsupported or would create more than 1000 buckets", http.StatusBadRequest)
 		return
 	}
@@ -143,9 +234,7 @@ func (s *Server) handleMetricsTimeSeries(w http.ResponseWriter, r *http.Request)
 	}
 	// Include the current partial interval so a newly accepted client record is
 	// visible immediately instead of waiting for the next bucket boundary.
-	to := time.Now().UTC().Truncate(step).Add(step)
-	from := to.Add(-window)
-	bucketCount := int(window / step)
+	bucketCount := int((to.Sub(from) + step - 1) / step)
 	buckets := make([]metricBucket, bucketCount)
 	for index := range buckets {
 		buckets[index].time = from.Add(time.Duration(index) * step)
@@ -268,7 +357,11 @@ func (s *Server) handleMetricsTimeSeries(w http.ResponseWriter, r *http.Request)
 			freshness["state"] = "stale"
 		}
 	}
-	jsonOK(w, map[string]any{"schema_version": "1", "range": rangeNameOrDefault(rangeName, "1h"), "step": rangeNameOrDefault(stepName, "1m"), "from": from.Format(time.RFC3339), "to": to.Format(time.RFC3339), "node_id": nodeID, "points": points, "canonical_history": map[string]any{"scope": "all_sources", "bucket_width_seconds": 60, "query_step_seconds": int64(step.Seconds()), "count_encoding": "decimal_string", "points": canonical, "freshness": freshness, "retention_seconds": int64(metricHistoryRetention.Seconds()), "source": "canonical_latest_cumulative_counters"}, "fleet": map[string]any{"stats": s.fleet.Stats(), "clients": clientMetrics}, "system": system, "retention": map[string]any{"raw_logs": false, "event_payloads": false, "secrets": false, "series_source": "bounded_parser_metadata_and_latest_heartbeat"}})
+	resolvedStep := rangeNameOrDefault(stepName, "1m")
+	if stepName == "" && step != time.Minute {
+		resolvedStep = "auto"
+	}
+	jsonOK(w, map[string]any{"schema_version": "1", "range": rangeNameOrDefault(normalizedRange, "1h"), "step": resolvedStep, "from": from.Format(time.RFC3339), "to": to.Format(time.RFC3339), "node_id": nodeID, "points": points, "canonical_history": map[string]any{"scope": "all_sources", "bucket_width_seconds": 60, "query_step_seconds": int64(step.Seconds()), "count_encoding": "decimal_string", "points": canonical, "freshness": freshness, "retention_seconds": int64(metricHistoryRetention.Seconds()), "source": "canonical_latest_cumulative_counters"}, "fleet": map[string]any{"stats": s.fleet.Stats(), "clients": clientMetrics}, "system": system, "retention": map[string]any{"raw_logs": false, "event_payloads": false, "secrets": false, "series_source": "bounded_parser_metadata_and_latest_heartbeat"}})
 }
 
 func nullableAverage(total float64, count int) any {

@@ -1,0 +1,16 @@
+# Example for a Prometheus agent running on the same host as each NLI client
+# and controller. Protect the bearer token file as a secret (mode 0600).
+scrape_configs:
+  - job_name: nli-client
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["127.0.0.1:12380"]
+
+  - job_name: nli-controller
+    scrape_interval: 15s
+    metrics_path: /api/v1/metrics/openmetrics
+    static_configs:
+      - targets: ["127.0.0.1:12382"]
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/nli-controller.token

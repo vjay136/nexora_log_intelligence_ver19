@@ -14,8 +14,9 @@ import (
 	metastore "nexora.local/nli-v19/internal/store"
 )
 
-// handleInputPathProfileRollout publishes the currently approved profile as a
-// validated client config patch. The client replaces only its inputs array.
+// handleInputPathProfileRollout proposes the published profile as a validated
+// client config patch for one or more selected clients, or every eligible
+// client. The client replaces only its inputs array after a separate approval.
 func (s *Server) handleInputPathProfileRollout(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		w.Header().Set("Allow", "GET, POST")
@@ -40,7 +41,7 @@ func (s *Server) handleInputPathProfileRollout(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if doc.State != "active" {
-		jsonError(w, "only approved and published input path profiles can roll out", http.StatusConflict)
+		jsonError(w, "input path profile must be submitted, independently approved, and published before rollout", http.StatusConflict)
 		return
 	}
 	var profile map[string]any
@@ -65,9 +66,9 @@ func (s *Server) handleInputPathProfileRollout(w http.ResponseWriter, r *http.Re
 	targets := []string{}
 	if len(request.NodeIDs) > 0 {
 		mode = "selected"
-		known := map[string]*fleet.Node{}
+		known := map[string]bool{}
 		for _, node := range s.fleet.All() {
-			known[node.ID] = node
+			known[node.ID] = true
 		}
 		seen := map[string]bool{}
 		for _, nodeID := range request.NodeIDs {
@@ -75,7 +76,7 @@ func (s *Server) handleInputPathProfileRollout(w http.ResponseWriter, r *http.Re
 			if nodeID == "" || seen[nodeID] {
 				continue
 			}
-			if _, exists := known[nodeID]; !exists {
+			if !known[nodeID] {
 				jsonError(w, "selected node does not exist: "+nodeID, http.StatusBadRequest)
 				return
 			}

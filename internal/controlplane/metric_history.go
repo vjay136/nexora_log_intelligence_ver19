@@ -11,7 +11,9 @@ import (
 	"nexora.local/nli-v19/telemetry"
 )
 
-const metricHistoryRetention = 30 * 24 * time.Hour
+// Keep a decade of minute aggregates so year and all-time dashboards survive
+// process restarts without relying on the short-lived event store.
+const metricHistoryRetention = (10*365 + 3) * 24 * time.Hour
 
 type historySource struct {
 	Generation string `json:"generation"`
@@ -117,6 +119,24 @@ func (h *metricHistory) observe(sources []telemetry.StreamFileTelemetry, now tim
 	}
 	key := now.Truncate(time.Minute).Unix()
 	b := h.buckets[key]
+	if b == nil && rd == 0 && parsed == 0 && quarantine == 0 && errs == 0 {
+		for key, source := range updated {
+			h.sources[key] = source
+		}
+		cutoff := now.Add(-metricHistoryRetention).Unix()
+		for k := range h.buckets {
+			if k < cutoff {
+				delete(h.buckets, k)
+			}
+		}
+		if h.lastPersist.IsZero() || now.Sub(h.lastPersist) >= time.Minute {
+			if err := h.persistLocked(); err != nil {
+				return err
+			}
+			h.lastPersist = now
+		}
+		return nil
+	}
 	if b == nil {
 		b = &historyBucket{At: time.Unix(key, 0).UTC()}
 		h.buckets[key] = b
@@ -196,19 +216,44 @@ func (h *metricHistory) window(from, to time.Time, step time.Duration) []history
 	defer h.mu.Unlock()
 	out := make([]historyBucket, 0, int(to.Sub(from)/step))
 	for at := from; at.Before(to); at = at.Add(step) {
-		var bucket historyBucket
-		bucket.At = at
-		start := at.Unix()
-		end := at.Add(step).Unix()
-		for minute := start; minute < end; minute += 60 {
-			if b := h.buckets[minute]; b != nil {
-				bucket.Read += b.Read
-				bucket.Parsed += b.Parsed
-				bucket.Quarantine += b.Quarantine
-				bucket.Errors += b.Errors
-			}
+		out = append(out, historyBucket{At: at})
+	}
+	if len(out) == 0 {
+		return out
+	}
+	for minute, source := range h.buckets {
+		at := time.Unix(minute, 0).UTC()
+		if at.Before(from) || !at.Before(to) {
+			continue
 		}
-		out = append(out, bucket)
+		index := int(at.Sub(from) / step)
+		if index < 0 || index >= len(out) {
+			continue
+		}
+		bucket := &out[index]
+		bucket.Read += source.Read
+		bucket.Parsed += source.Parsed
+		bucket.Quarantine += source.Quarantine
+		bucket.Errors += source.Errors
 	}
 	return out
+}
+
+func (h *metricHistory) bounds() (time.Time, time.Time, bool) {
+	if h == nil {
+		return time.Time{}, time.Time{}, false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var earliest, latest time.Time
+	for second := range h.buckets {
+		at := time.Unix(second, 0).UTC()
+		if earliest.IsZero() || at.Before(earliest) {
+			earliest = at
+		}
+		if latest.IsZero() || at.After(latest) {
+			latest = at
+		}
+	}
+	return earliest, latest, !earliest.IsZero()
 }
