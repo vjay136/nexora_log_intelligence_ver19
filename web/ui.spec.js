@@ -4,10 +4,10 @@ import { readFile } from 'node:fs/promises';
 // These browser regressions verify frontend behavior independently of network
 // and database availability. e2e.spec.js separately exercises a real controller.
 const origin = 'http://127.0.0.1:4176';
-const tabs = ['operations', 'monitoring', 'streams', 'sync-fabric', 'nhle-monitor', 'napi-monitor', 'nal-monitor', 'assurance', 'parser-workspace', 'nupire', 'api-monitor', 'field-integrity', 'fleet', 'parser-sync', 'clients', 'controller', 'parsers', 'migration', 'input-paths', 'kv', 'static', 'projection', 'studio', 'regex', 'knownkeys', 'semantic', 'engine-network', 'engine-url', 'engine-email', 'engine-subject', 'outputs', 'metadata', 'unknowns', 'drift', 'performance', 'rollouts', 'artifacts', 'security', 'system', 'communications', 'notifications', 'ai'];
+const tabs = ['operations', 'monitoring', 'streams', 'sync-fabric', 'nhle-monitor', 'napi-monitor', 'nal-monitor', 'assurance', 'upes', 'parser-workspace', 'nupire', 'api-monitor', 'field-integrity', 'fleet', 'parser-sync', 'clients', 'controller', 'parsers', 'migration', 'input-paths', 'kv', 'static', 'projection', 'studio', 'regex', 'knownkeys', 'semantic', 'engine-network', 'engine-url', 'engine-email', 'engine-subject', 'outputs', 'metadata', 'unknowns', 'drift', 'performance', 'rollouts', 'artifacts', 'security', 'system', 'communications', 'notifications', 'ai'];
 const assets = Object.fromEntries(await Promise.all(['index.html', 'app.js', 'styles.css', 'nli-mark.svg', 'nexora-logo-v19.png', 'login-banner-v19.png', 'nexora-poster-v19.png'].map(async name => [name, await readFile(new URL(name, import.meta.url))])));
 
-async function mockController(page, { role = 'admin', healthIdentity = 'v19' } = {}) {
+async function mockController(page, { role = 'admin', healthIdentity = 'v19', upesSnapshot = null, assurancePassed = true } = {}) {
   const observed = [];
   const cases = [];
   const uploads = [];
@@ -37,7 +37,10 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
     }
     observed.push(`${request.method()} ${path}`);
     const headers = { 'content-type': 'application/json', 'x-nli-controller': healthIdentity, 'x-nli-upstream': 'controller' };
-    const fulfill = (value, status = 200) => route.fulfill({ status, headers, body: JSON.stringify(value) });
+    const fulfill = (value, status = 200) => {
+      if (path === '/api/v1/sync/snapshot' && upesSnapshot) value = { ...value, subsystems: { ...(value.subsystems || {}), upes: upesSnapshot } };
+      return route.fulfill({ status, headers, body: JSON.stringify(value) });
+    };
     if (path === '/api/v1/health') return fulfill({ status: 'ok', service: 'nli-controller-agent', api_version: 'v1' });
     if (path === '/api/v1/auth/login' && request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { ...headers, allow: 'POST, OPTIONS' } });
     if (path === '/api/v1/auth/login') { authenticated = true; return fulfill({ status: 'ok' }); }
@@ -48,7 +51,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19' } =
     if (path === '/api/v1/assurance/run') {
       const requestBody = request.postDataJSON();
       assuranceRequests.push(requestBody);
-      return fulfill({ passed: true, route: 'normal', actual: { message: requestBody.raw, service: requestBody.service }, parser: { name: 'test-parser', version: '7', strategy: 'json' }, counts: { actual: 2, attempts: 1 }, trace: [{ stage: 'parser_attempt', parser: 'test-parser', success: true, fields: 2 }], evidence_spans: [{ field: 'message', source_backed: true, start: 0, end: requestBody.raw.length }], parser_creation_helper: { normalized_sample: requestBody.raw.replace(/\r\n/g,'\n').split('\n').map(line=>line.replace(/[\t ]+$/,'')).join('\n'), sample_lines: 2, detected_format: 'key_value', requested_family: requestBody.service, selected_parser: 'test-parser', selected_strategy: 'key_value', match_scope: { kind: 'line', prefix: 'level=' }, suggested_regex: 'level=(?P<level>\\S+) user=(?P<user>\\S+)', kv_delimiters: ['='], fields: [{ name: 'level', source: 'group:level', type: 'string' }, { name: 'user', source: 'group:user', type: 'string' }], projection: ['level','user'], template: { level: '{level}', user: '{user}' }, requires_human_approval: true } });
+      return fulfill({ passed: assurancePassed, route: assurancePassed ? 'normal' : 'quarantine', actual: { message: requestBody.raw, service: requestBody.service }, parser: { name: assurancePassed ? 'test-parser' : 'unknown', version: '7', strategy: 'json' }, counts: { actual: 2, attempts: 1 }, trace: [{ stage: 'parser_attempt', parser: assurancePassed ? 'test-parser' : 'unknown', success: assurancePassed, fields: 2 }], evidence_spans: [{ field: 'message', source_backed: true, start: 0, end: requestBody.raw.length }], parser_creation_helper: { normalized_sample: requestBody.raw.replace(/\r\n/g,'\n').split('\n').map(line=>line.replace(/[\t ]+$/,'')).join('\n'), sample_lines: 2, detected_format: 'key_value', requested_family: requestBody.service, selected_parser: assurancePassed ? 'test-parser' : 'unknown', selected_strategy: 'key_value', match_scope: { kind: 'line', prefix: 'level=' }, suggested_regex: 'level=(?P<level>\\S+) user=(?P<user>\\S+)', kv_delimiters: ['='], fields: [{ name: 'level', source: 'group:level', type: 'string' }, { name: 'user', source: 'group:user', type: 'string' }], projection: ['level','user'], template: { level: '{level}', user: '{user}' }, requires_human_approval: true } });
     }
     if (path === '/api/v1/assurance/corpus' && request.method() === 'POST') { const body=request.postDataJSON();assuranceCorpora.push(body);return fulfill({total:body.cases.length,passed:body.cases.length,failed:0,results:[]}); }
     if (path === '/api/v1/assurance/upload' && request.method() === 'POST') { uploads.push(request.postData() || ''); return fulfill({ retained: true, fixture_id: 'fixture-42', encrypted: true, filename: 'sample.log', content_type: 'text/plain', size_bytes: 28, sha256: 'a'.repeat(64), parser_revision: 'smtp@18.0.0', storage_status: 'encrypted_supabase' }); }
@@ -275,7 +278,7 @@ test('navigation leads with Command Center, Assurance Lab, approvals and notific
   await mockController(page);
   await login(page);
   const ids=await page.locator('.nav-item').evaluateAll(items=>items.map(item=>item.dataset.page));
-  expect(ids.slice(0,12)).toEqual(['operations','monitoring','streams','assurance','rollouts','parser-sync','artifacts','parser-workspace','nupire','field-integrity','ai','notifications']);
+  expect(ids.slice(0,13)).toEqual(['operations','monitoring','streams','assurance','upes','rollouts','parser-sync','artifacts','parser-workspace','nupire','field-integrity','ai','notifications']);
   const input=ids.indexOf('input-paths'),output=ids.indexOf('outputs'),parsing=ids.indexOf('kv');
   expect(ids[input+1]).toBe('migration');
   expect(ids[input+2]).toBe('outputs');
@@ -285,6 +288,42 @@ test('navigation leads with Command Center, Assurance Lab, approvals and notific
   expect(ids[parsing]).toBe('kv');
   expect(ids.indexOf('parsers')).toBeGreaterThan(parsing);
   expect(ids.indexOf('engine-network')).toBeGreaterThan(ids.indexOf('drift'));
+});
+
+test('UPES observatory uses controller failure and candidate data with explicit unavailable views', async ({ page }) => {
+  const mock = await mockController(page, { upesSnapshot: { status: 'live', clients_total: 1, clients_reporting: 1, unique_failure_signatures: 2, observed_failures: 7, discovery_queued: 2, discovery_dropped: 0, discovery_pending: 1 } });
+  await login(page);
+  await page.getByTestId('nav-upes').click();
+  await expect(page.getByRole('heading', { name: 'Unstoppable Parsing Engine Support' })).toBeVisible();
+  await expect(page.getByText('q-1', { exact: true }).first()).toBeVisible();
+  await expect(page.locator('[data-subsystem-panel=failures]')).toContainText('Observed failures7');
+  expect(mock.observed).toContain('GET /api/v1/sync/snapshot');
+  expect(mock.observed).not.toContain('GET /api/v1/upes/snapshot');
+  await expect(page.getByRole('tab', { name: 'Knowledge Base' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Discovery Jobs' }).click();
+  await expect(page.locator('[data-subsystem-panel=jobs]')).toContainText('"observed_failures": 7');
+  await page.getByRole('tab', { name: 'Knowledge Base' }).click();
+  await expect(page.getByText('Knowledge base telemetry unavailable.')).toBeVisible();
+});
+
+test('Guided Parser Repair Studio inspects retained failures, uses AI only after failure, and opens the candidate editor', async ({ page }) => {
+  const mock = await mockController(page, { assurancePassed: false });
+  await login(page);
+  await page.getByTestId('nav-assurance').click();
+  await page.getByRole('tab', { name: 'Guided Parser Repair Studio' }).click();
+  await expect(page.getByText('q-1', { exact: true }).first()).toBeVisible();
+  await page.locator('[data-gprs-record="q-1"]').check();
+  const desired = page.locator('#gprs-preview-form [name=desired]');
+  await desired.fill('{"user":"alice"}');
+  await page.locator('#gprs-preview-form [name=mapping]').fill('{"username":"user"}');
+  await page.getByRole('button', { name: 'Run live multi-record preview' }).click();
+  await expect(page.getByTestId('gprs-preview')).toContainText('records_tested');
+  await expect(page.getByRole('button', { name: 'Ask AI to diagnose and propose a fix' })).toBeVisible();
+  expect(mock.observed).toContain('POST /api/v1/quarantine/records/q-1/analyze');
+  expect(mock.assuranceRequests.at(-1).desired).toEqual({ user: 'alice' });
+  await page.getByRole('button', { name: 'Edit / create parser candidate' }).click();
+  await expect(page.getByRole('tab', { name: 'Parser Creation Helper' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#parser-helper-form [name=samples]')).toHaveValue('exact raw source line');
 });
 
 test('premium login keeps the square V19 emblem and banner fully contained on desktop and mobile', async ({ page }) => {
@@ -649,7 +688,9 @@ test('Assurance helper trims trailing whitespace, generates editable parser, val
   await page.getByTestId('nav-assurance').click();
   await expect(page.getByRole('tablist', { name: 'Assurance Lab tools' })).toBeVisible();
   const labels = await page.getByRole('tablist', { name: 'Assurance Lab tools' }).getByRole('tab').allTextContents();
-  expect(labels).toEqual(['Analyse', 'Corpus reports', 'Parser drafts', 'Review Queue', 'History', 'Fixtures', 'Parser Creation Helper', 'NAPI Synthesis', 'Test Plans', 'Runs']);
+  expect(labels).toEqual(['Analyse', 'Corpus reports', 'Parser drafts', 'Review Queue', 'History', 'Fixtures', 'Guided Parser Repair Studio', 'Parser Creation Helper', 'NAPI Synthesis', 'Test Plans', 'Runs']);
+  await page.getByRole('tab', { name: 'Guided Parser Repair Studio' }).click();
+  await expect(page.getByText(/active parser is unchanged until the existing approval and deployment flow completes/i)).toBeVisible();
   await page.getByRole('tab', { name: 'Parser Creation Helper' }).click();
   const form = page.locator('#parser-helper-form');
   await form.locator('[name=samples]').fill('level=INFO user=alice   \r\nlevel=WARN user=bob\t  \r\n');
@@ -749,13 +790,28 @@ test('Endpoint Configuration tests and saves a safe ClickHouse field-mapped prof
   await login(page);
   await page.getByTestId('nav-outputs').click();
   await expect(page.getByRole('heading', { name: 'Endpoint Configuration', level: 1 })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Endpoint configuration sections' }).getByRole('tab')).toHaveText(['Destinations', 'Security & credentials', 'Validation', 'Saved profiles', 'Live & rollback']);
   const form = page.locator('#output-profile-form');
+  await expect(form.locator('[name=normalised_enabled]')).toBeVisible();
+  await page.getByRole('tab', { name: 'Security & credentials' }).click();
+  await expect(form.locator('[name=clickhouse_password_env]')).toBeVisible();
+  await page.getByRole('tab', { name: 'Validation' }).click();
+  await expect(form.locator('[name=field_columns]')).toBeVisible();
+  await expect(form.getByRole('button', { name: 'Validate configuration' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Saved profiles' }).click();
+  await expect(page.getByRole('heading', { name: 'Saved output profiles' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Live & rollback' }).click();
+  await expect(page.getByRole('heading', { name: 'Roll out endpoint profile' })).toBeVisible();
+  await expect(page.locator('#output-rollout-form')).toBeVisible();
+  await page.getByRole('tab', { name: 'Destinations' }).click();
   await form.locator('[name=normalised_enabled]').uncheck();
   await form.locator('[name=destinations][value=clickhouse]').check();
   await form.locator('[name=clickhouse_url]').fill('https://clickhouse.example.com:8443');
+  await page.getByRole('tab', { name: 'Validation' }).click();
   await form.locator('[name=field_columns]').fill('{"fromhost":"client_ip"}');
-  await form.getByRole('button', { name: 'Test configuration' }).click();
-  await expect(page.locator('#output-config-test-result')).toContainText('Configuration test passed');
+  await form.getByRole('button', { name: 'Validate configuration' }).click();
+  await expect(page.locator('#output-config-test-result')).toContainText('Local profile validation passed');
+  await expect(page.locator('#output-config-test-result')).toContainText('Network connectivity was not tested');
   await expect(page.locator('#output-profile-preview')).toContainText('normal');
   await form.getByRole('button', { name: 'Validate and save draft' }).click();
   await expect(page.locator('#output-profile-preview')).toContainText('client_ip');
@@ -775,6 +831,7 @@ test('published endpoint profile creates an outputs-only approval rollout', asyn
   mock.outputProfiles.push(profile);
   await login(page);
   await page.getByTestId('nav-outputs').click();
+  await page.getByRole('tab', { name: 'Live & rollback' }).click();
   const form = page.locator('#output-rollout-form');
   await form.locator('[name=profile_id]').selectOption('remote-delivery');
   await form.locator('[name=targets]').fill('node-a, node-b');

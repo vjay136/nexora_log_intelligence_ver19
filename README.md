@@ -26,6 +26,13 @@ unavailable measurements remain explicit. See the [NUPIRE architecture](docs/V19
 [baseline gap audit](docs/V19_BASELINE_CAPABILITY_GAP.md), and
 [research ledger](docs/V19_RESEARCH_AND_LICENSE_LEDGER.md).
 
+Release `19.0.0-6` adds bounded client-side UPES failure signatures and the
+checksum-bound Guided Parser Repair Studio (GPRS) candidate review lifecycle. The workflow keeps
+withdrawal, independent approval, publication, and rollback distinct from
+client activation, which continues through the signed parser-bundle rollout.
+See the [UPES/GPRS architecture and acceptance guide](docs/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md)
+and its [architecture diagram](docs/architecture/NLI_V19_UPES_GPRS_ARCHITECTURE.svg).
+
 ## V18 baseline capabilities retained in Ver19
 
 - Reviewed first-tier ParserPacks for IMAP, POP, MTA, SMTP-IN, SMTP-OUT, WebTop/Webmail, PSS/PABD, and MSS/CAPD, derived from the supplied working Alloy/Vector parser sources.

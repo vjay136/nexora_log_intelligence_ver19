@@ -29,19 +29,25 @@ type RegisterResponse struct {
 }
 
 type Metrics struct {
-	Received             uint64  `json:"logs_received"`
-	Parsed               uint64  `json:"logs_parsed"`
-	Quarantined          uint64  `json:"logs_quarantined"`
-	Errors               uint64  `json:"errors"`
-	ParseRate            float64 `json:"parse_rate_pct,omitempty"`
-	ParseLatencyMs       float64 `json:"parse_latency_ms,omitempty"`
-	CPUPercent           float64 `json:"cpu_percent,omitempty"`
-	MemoryBytes          uint64  `json:"memory_bytes,omitempty"`
-	MemoryPercent        float64 `json:"memory_percent,omitempty"`
-	Load1                float64 `json:"load_1m,omitempty"`
-	Load5                float64 `json:"load_5m,omitempty"`
-	Load15               float64 `json:"load_15m,omitempty"`
-	HostMetricsAvailable bool    `json:"host_metrics_available"`
+	Received                    uint64  `json:"logs_received"`
+	Parsed                      uint64  `json:"logs_parsed"`
+	Quarantined                 uint64  `json:"logs_quarantined"`
+	Errors                      uint64  `json:"errors"`
+	ParseRate                   float64 `json:"parse_rate_pct,omitempty"`
+	ParseLatencyMs              float64 `json:"parse_latency_ms,omitempty"`
+	CPUPercent                  float64 `json:"cpu_percent,omitempty"`
+	MemoryBytes                 uint64  `json:"memory_bytes,omitempty"`
+	MemoryPercent               float64 `json:"memory_percent,omitempty"`
+	Load1                       float64 `json:"load_1m,omitempty"`
+	Load5                       float64 `json:"load_5m,omitempty"`
+	Load15                      float64 `json:"load_15m,omitempty"`
+	HostMetricsAvailable        bool    `json:"host_metrics_available"`
+	UPESMetricsAvailable        bool    `json:"upes_metrics_available"`
+	UPESUniqueFailureSignatures uint64  `json:"upes_unique_failure_signatures,omitempty"`
+	UPESObservedFailures        uint64  `json:"upes_observed_failures,omitempty"`
+	UPESDiscoveryQueued         uint64  `json:"upes_discovery_queued,omitempty"`
+	UPESDiscoveryDropped        uint64  `json:"upes_discovery_dropped,omitempty"`
+	UPESDiscoveryPending        uint64  `json:"upes_discovery_pending,omitempty"`
 }
 
 type HeartbeatRequest struct {

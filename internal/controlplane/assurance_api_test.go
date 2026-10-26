@@ -104,6 +104,19 @@ func TestAssuranceScoreAndParserCandidateLifecycle(t *testing.T) {
 	if !foundPublished || liveBundle.BundleHash != published["bundle_hash"] {
 		t.Fatalf("published parser and returned signed hash do not match bundle: found=%t bundle=%s response=%s", foundPublished, liveBundle.BundleHash, data)
 	}
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+id+"/rollback", map[string]any{})
+	if response.StatusCode != http.StatusOK || decodeMap(t, data)["state"] != "approved" {
+		t.Fatalf("rollback active candidate %d: %s", response.StatusCode, data)
+	}
+	rolledBackBundle, err := f.server.buildActiveParserBundle(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, asset := range rolledBackBundle.Assets {
+		if asset.AssetClass == "parser-packs" && asset.AssetID == id {
+			t.Fatal("rolled back parser remained in the active parser bundle")
+		}
+	}
 	response, data = f.request(http.MethodPost, "/api/v1/assurance/run", map[string]any{"raw": `{"level":"INFO","user":"alice"}`, "desired": map[string]any{"level": "INFO", "user": "alice"}})
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("assurance run %d: %s", response.StatusCode, data)
@@ -111,6 +124,74 @@ func TestAssuranceScoreAndParserCandidateLifecycle(t *testing.T) {
 	result := decodeMap(t, data)
 	if result["score"] == nil || result["coverage"] == nil || result["passed"] != true {
 		t.Fatalf("assurance score/coverage missing: %s", data)
+	}
+}
+
+func TestAssuranceParserSubmissionCanBeCancelled(t *testing.T) {
+	f := newAPIFixture(t)
+	parser := map[string]any{"pattern_type": "regex", "pattern": `user=(?P<user>\w+)`, "fields": []any{map[string]any{"name": "user", "source": "group:user", "type": "string"}}}
+	cases := []any{map[string]any{"raw": "user=alice", "desired": map[string]any{"user": "alice"}}}
+	response, data := f.request(http.MethodPost, "/api/v1/assurance/parsers", map[string]any{"name": "Cancel candidate", "parser": parser, "cases": cases})
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("draft create %d: %s", response.StatusCode, data)
+	}
+	id := decodeMap(t, data)["id"].(string)
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+id+"/submit", map[string]any{})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("submit %d: %s", response.StatusCode, data)
+	}
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+id+"/cancel", map[string]any{})
+	if response.StatusCode != http.StatusOK || decodeMap(t, data)["state"] != "draft" {
+		t.Fatalf("cancel %d: %s", response.StatusCode, data)
+	}
+}
+
+func TestAssuranceParserApprovalRejectsChecksumTampering(t *testing.T) {
+	f := newAPIFixture(t)
+	parser := map[string]any{"pattern_type": "regex", "pattern": `user=(?P<user>\w+)`, "fields": []any{map[string]any{"name": "user", "source": "group:user", "type": "string"}}}
+	cases := []any{map[string]any{"raw": "user=alice", "desired": map[string]any{"user": "alice"}}}
+	response, data := f.request(http.MethodPost, "/api/v1/assurance/parsers", map[string]any{"name": "Checksum candidate", "parser": parser, "cases": cases})
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("draft create %d: %s", response.StatusCode, data)
+	}
+	id := decodeMap(t, data)["id"].(string)
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+id+"/submit", map[string]any{})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("submit %d: %s", response.StatusCode, data)
+	}
+
+	doc, err := f.server.metadata.Get(context.Background(), "parser-packs", id, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(doc.Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	definition := payload["parser"].(map[string]any)
+	definition["pattern"] = `user=(?P<user>.+)`
+	doc.Payload, _ = json.Marshal(payload)
+	if _, err := f.server.metadata.Put(context.Background(), doc); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := f.server.auth.CreateUser("admin", "checksum-reviewer", "checksum-reviewer@example.test", "reviewer", "Reviewer-password-12345!"); err != nil {
+		t.Fatal(err)
+	}
+	f.login("checksum-reviewer", "Reviewer-password-12345!")
+	f.refreshCSRF()
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+id+"/approve", map[string]any{})
+	if response.StatusCode != http.StatusConflict || !strings.Contains(string(data), "artifact changed") {
+		t.Fatalf("tampered candidate approval must fail closed, got %d: %s", response.StatusCode, data)
+	}
+	bundle, err := f.server.buildActiveParserBundle(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, asset := range bundle.Assets {
+		if asset.AssetClass == "parser-packs" && asset.AssetID == id {
+			t.Fatal("tampered candidate entered the active parser bundle")
+		}
 	}
 }
 

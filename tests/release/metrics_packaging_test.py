@@ -51,8 +51,8 @@ def validate(root: Path, stage: Path) -> None:
         fail("catalog schema_version must be 1")
     if catalog.get("descriptor_count") != len(controller_descriptors):
         fail("descriptor_count must match the controller catalog descriptor list")
-    if len(controller_descriptors) != 26 or len(client_descriptors) != 8:
-        fail("catalog must contain 26 controller and 8 client descriptors")
+    if len(controller_descriptors) != 26 or len(client_descriptors) != 13:
+        fail("catalog must contain 26 controller and 13 client descriptors")
     if catalog.get("addressable_series_floor") != len([d for d in controller_descriptors if d["group"] == "client"]) * 1000:
         fail("addressable_series_floor must be derived from client descriptor count x 1,000")
     if "not a count of live" not in catalog.get("addressability_explanation", ""):
@@ -68,6 +68,24 @@ def validate(root: Path, stage: Path) -> None:
     catalog_client = {item["name"] for item in client_descriptors}
     if actual_client != catalog_client:
         fail(f"client catalog differs from /metrics source: missing={sorted(actual_client-catalog_client)} extra={sorted(catalog_client-actual_client)}")
+    upes = {item["name"]: item for item in client_descriptors if item["name"].startswith("nli_upes_")}
+    expected_upes = {
+        "nli_upes_unique_failure_signatures_total": "counter",
+        "nli_upes_observed_failures_total": "counter",
+        "nli_upes_discovery_queued_total": "counter",
+        "nli_upes_discovery_dropped_total": "counter",
+        "nli_upes_discovery_pending": "gauge",
+    }
+    if {name: item["type"] for name, item in upes.items()} != expected_upes:
+        fail("UPES metrics must describe four cumulative counters and the current pending-queue gauge")
+    if any(item.get("labels") != [] or item.get("endpoint") != "client" for item in upes.values()):
+        fail("UPES metrics must remain unlabeled client-local measurements")
+    if any("client UPES runtime" not in item.get("source", "") and "current client UPES runtime" not in item.get("source", "") for item in upes.values()):
+        fail("UPES metrics must identify the client runtime as their source")
+    if any("Always exported by client /metrics" not in item.get("availability", "") or "agent restart" not in item["availability"] for item in upes.values()):
+        fail("UPES metrics must declare always-exported process-local availability and restart reset behavior")
+    if any(any(secret in item.get("help", "").lower() for secret in ("raw record", "path", "fingerprint")) for item in upes.values()):
+        fail("UPES metric help must avoid implying that sensitive source data is exported")
 
     actual_controller = names_from_source(root / "internal" / "controlplane" / "metrics_catalog.go", "var controllerMetricDescriptors", "func buildMetricCatalog")
     catalog_controller = {item["name"] for item in controller_descriptors}
@@ -80,6 +98,8 @@ def validate(root: Path, stage: Path) -> None:
     expressions = [target.get("expr", "") for panel in dashboard["panels"] for target in panel.get("targets", [])]
     if not expressions or any(not any(name in expression for name in known_metrics) for expression in expressions):
         fail("every dashboard target must reference a catalogued metric")
+    if not any("nli_upes_discovery_pending" in expression for expression in expressions) or not any("nli_upes_discovery_dropped_total" in expression for expression in expressions):
+        fail("Grafana dashboard must expose the current UPES queue and dropped-discovery counter")
 
     scrape = (stage / "prometheus-scrape.yml").read_text(encoding="utf-8")
     for required_text in ("job_name: nli-client", '"127.0.0.1:12380"', "job_name: nli-controller", "/api/v1/metrics/openmetrics", '"127.0.0.1:12382"', "credentials_file:"):

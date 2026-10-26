@@ -185,6 +185,17 @@ func TestReadMetricsKeepsUnavailableHostMetricsDistinctFromZero(t *testing.T) {
 	}
 }
 
+func TestReadMetricsCarriesUPESCountersAndAvailability(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "nli_upes_unique_failure_signatures_total 12\nnli_upes_observed_failures_total 34\nnli_upes_discovery_queued_total 5\nnli_upes_discovery_dropped_total 2\nnli_upes_discovery_pending 3\n")
+	}))
+	defer server.Close()
+	got := readMetrics(server.URL)
+	if !got.UPESMetricsAvailable || got.UPESUniqueFailureSignatures != 12 || got.UPESObservedFailures != 34 || got.UPESDiscoveryQueued != 5 || got.UPESDiscoveryDropped != 2 || got.UPESDiscoveryPending != 3 {
+		t.Fatalf("UPES metrics were not carried from the agent endpoint: %+v", got)
+	}
+}
+
 func TestReadHostMetricsAvailabilityMatchesPlatform(t *testing.T) {
 	metrics, available := readHostMetrics()
 	if runtime.GOOS != "linux" {

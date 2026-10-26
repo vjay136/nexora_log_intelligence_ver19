@@ -66,7 +66,7 @@ type QueueStats struct {
 	TruncatedSamples uint64 `json:"truncated_samples"`
 }
 
-// New creates a Discoverer. stateDir is where AI parsers are written.
+// New creates a Discoverer. stateDir is where AI parser candidates are staged.
 func New(cfg Config, reg *registry.Registry, miner *drain.Miner, stateDir string) *Discoverer {
 	if cfg.BatchSize <= 0 {
 		cfg.BatchSize = 20
@@ -191,14 +191,15 @@ func (d *Discoverer) RunBatch(ctx context.Context, clusterSizes map[int]int) err
 			fmt.Fprintf(os.Stderr, "ai: parser %s failed regression (%d failures), quarantined\n", parserDef.ID, len(failures))
 			continue
 		}
-		d.reg.Register(parserDef)
-		if err := d.reg.SaveParser(d.stateDir+"/parsers", parserDef); err != nil {
-			fmt.Fprintf(os.Stderr, "ai: failed to save parser %s: %v\n", parserDef.ID, err)
+		// A valid AI response is evidence for a candidate, never authorization to
+		// change the active parser registry. Activation must travel through the
+		// controller's checksum-bound review, independent approval, signed bundle,
+		// and client acknowledgement workflow.
+		if err := d.reg.SaveParser(d.stateDir+"/parsers/candidates", parserDef); err != nil {
+			fmt.Fprintf(os.Stderr, "ai: failed to stage parser candidate %s: %v\n", parserDef.ID, err)
 			continue
 		}
-		if d.miner != nil {
-			d.miner.SetParserID(pending.ClusterID, parserDef.ID)
-		}
+		fmt.Fprintf(os.Stderr, "ai: parser candidate %s staged for managed review; cluster %d remains unassigned\n", parserDef.ID, pending.ClusterID)
 	}
 	return nil
 }

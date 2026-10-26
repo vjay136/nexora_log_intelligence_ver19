@@ -388,6 +388,61 @@
       "labels": [],
       "source": "client discovery statistics",
       "endpoint": "client"
+    },
+    {
+      "name": "nli_upes_unique_failure_signatures_total",
+      "group": "client",
+      "type": "counter",
+      "help": "New structural failure-signature entries retained by this agent since process start; an evicted signature can be counted again.",
+      "labels": [],
+      "unit": "signatures",
+      "source": "client UPES runtime statistics",
+      "availability": "Always exported by client /metrics; process-local cumulative count, reset at agent restart.",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_upes_observed_failures_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Parser failures observed by the in-memory UPES runtime since process start.",
+      "labels": [],
+      "unit": "failures",
+      "source": "client UPES runtime statistics",
+      "availability": "Always exported by client /metrics; process-local cumulative count, reset at agent restart.",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_upes_discovery_queued_total",
+      "group": "client",
+      "type": "counter",
+      "help": "New failure-signature entries admitted to the bounded in-memory UPES discovery queue since process start; an evicted signature can be queued again.",
+      "labels": [],
+      "unit": "discoveries",
+      "source": "client UPES runtime statistics",
+      "availability": "Always exported by client /metrics; process-local cumulative count, reset at agent restart.",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_upes_discovery_dropped_total",
+      "group": "client",
+      "type": "counter",
+      "help": "First-seen failure signatures not queued because the bounded in-memory UPES discovery queue was full since process start.",
+      "labels": [],
+      "unit": "discoveries",
+      "source": "client UPES runtime statistics",
+      "availability": "Always exported by client /metrics; process-local cumulative count, reset at agent restart.",
+      "endpoint": "client"
+    },
+    {
+      "name": "nli_upes_discovery_pending",
+      "group": "client",
+      "type": "gauge",
+      "help": "Discovery summaries currently waiting in the in-memory UPES queue.",
+      "labels": [],
+      "unit": "discoveries",
+      "source": "current client UPES runtime statistics",
+      "availability": "Always exported by client /metrics; current process-local queue length, reset at agent restart.",
+      "endpoint": "client"
     }
   ]
 }

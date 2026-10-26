@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"nexora.local/nli-v19/internal/engine"
+	"nexora.local/nli-v19/internal/fleet"
 	metastore "nexora.local/nli-v19/internal/store"
 	"nexora.local/nli-v19/telemetry"
 )
@@ -179,7 +180,73 @@ func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.S
 	delivery := map[string]any{"status": "ready", "updated_at": snapshot.GeneratedAt, "acknowledgements_by_destination": storeStats["delivery_acks"], "retry_count": nil, "backlog": nil, "latency_ms": nil, "retry_backlog_latency_status": telemetry.FreshnessNotInstrumented}
 	replay := s.replayQueueSnapshot(ctx, snapshot.GeneratedAt)
 	release := s.releaseReadinessSnapshot(ctx, snapshot.GeneratedAt)
-	return map[string]any{"nhle": nhle, "napi": napi, "nal": nal, "nursf": nursf, "delivery": delivery, "replay": replay, "release_readiness": release}
+	return map[string]any{"nhle": nhle, "napi": napi, "nal": nal, "nursf": nursf, "delivery": delivery, "replay": replay, "release_readiness": release, "upes": upesSyncSnapshot(s.fleet.All(), snapshot.GeneratedAt)}
+}
+
+func upesSyncSnapshot(nodes []*fleet.Node, now time.Time) map[string]any {
+	result := map[string]any{"status": telemetry.FreshnessUnavailable, "updated_at": nil, "clients_total": len(nodes), "clients_reporting": 0, "clients": make([]map[string]any, 0, len(nodes))}
+	clients := result["clients"].([]map[string]any)
+	var latest time.Time
+	var oldest time.Time
+	var unique, observed, queued, dropped, pending uint64
+	for _, node := range nodes {
+		client := map[string]any{"node_id": node.ID, "hostname": node.Hostname, "status": telemetry.FreshnessUnavailable}
+		metric := node.Metrics
+		if metric != nil && metric.UPESMetricsAvailable {
+			age := now.Sub(metric.UpdatedAt)
+			clientStatus := telemetry.FreshnessLive
+			if metric.UpdatedAt.IsZero() || age > 5*time.Minute {
+				clientStatus = telemetry.FreshnessStale
+			} else if age > 90*time.Second {
+				clientStatus = telemetry.FreshnessDelayed
+			}
+			client["status"] = clientStatus
+			client["updated_at"] = metric.UpdatedAt
+			client["unique_failure_signatures"] = metric.UPESUniqueFailureSignatures
+			client["observed_failures"] = metric.UPESObservedFailures
+			client["discovery_queued"] = metric.UPESDiscoveryQueued
+			client["discovery_dropped"] = metric.UPESDiscoveryDropped
+			client["discovery_pending"] = metric.UPESDiscoveryPending
+			unique += metric.UPESUniqueFailureSignatures
+			observed += metric.UPESObservedFailures
+			queued += metric.UPESDiscoveryQueued
+			dropped += metric.UPESDiscoveryDropped
+			pending += metric.UPESDiscoveryPending
+			result["clients_reporting"] = result["clients_reporting"].(int) + 1
+			if metric.UpdatedAt.After(latest) {
+				latest = metric.UpdatedAt
+			}
+			if oldest.IsZero() || metric.UpdatedAt.Before(oldest) {
+				oldest = metric.UpdatedAt
+			}
+		}
+		clients = append(clients, client)
+	}
+	result["clients"] = clients
+	reporting := result["clients_reporting"].(int)
+	if reporting == 0 {
+		return result
+	}
+	result["unique_failure_signatures"] = unique
+	result["observed_failures"] = observed
+	result["discovery_queued"] = queued
+	result["discovery_dropped"] = dropped
+	result["discovery_pending"] = pending
+	result["updated_at"] = latest
+	if reporting < len(nodes) {
+		result["status"] = "partial"
+	} else {
+		age := now.Sub(oldest)
+		switch {
+		case age > 5*time.Minute:
+			result["status"] = telemetry.FreshnessStale
+		case age > 90*time.Second:
+			result["status"] = telemetry.FreshnessDelayed
+		default:
+			result["status"] = telemetry.FreshnessLive
+		}
+	}
+	return result
 }
 
 func (s *Server) replayQueueSnapshot(ctx context.Context, now time.Time) map[string]any {

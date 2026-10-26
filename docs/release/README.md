@@ -1,6 +1,27 @@
 # NLI v19 release infrastructure
 
-## Release 19.0.0-5
+## Release 19.0.0-6
+
+Release 6 adds bounded UPES failure-signature aggregation and the Guided Parser
+Repair Studio (GPRS) candidate checksum, withdrawal, independent-review,
+publication, and rollback lifecycle. UPES retains only normalized structural digests and bounded
+metadata in memory; it does not retain raw records or paths, and its discovery
+queue is not a durable or distributed queue. The GPRS-labelled candidate
+workflow does not bypass the established signed bundle rollout, independent
+rollout approval, client verification, or applied-hash acknowledgement.
+
+See [the UPES/GPRS architecture and acceptance guide](../V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md)
+and its [architecture diagram](../architecture/NLI_V19_UPES_GPRS_ARCHITECTURE.svg)
+for detailed boundaries and reproducible checks. These notes do not claim
+release acceptance or production qualification.
+
+### Operator acceptance for release 6
+
+1. Verify UPES same-shape aggregation, first-seen queue behavior, signature and queue bounds, concurrency, aggregate-only metrics, and in-memory restart semantics using the guide's synthetic checks.
+2. Create, validate, submit, independently approve, publish, withdraw, and roll back synthetic Assurance parser candidates. Verify checksum mismatch rejection at approval and publication.
+3. Confirm publication and rollback update the desired parser bundle only through the normal signed rollout and independent approval path, then verify client bundle-hash acknowledgement before declaring applied state.
+
+## Previous release: 19.0.0-5
 
 Release 5 makes the input-path approval stages explicit: a profile must be
 submitted, independently approved, and published before it can be proposed

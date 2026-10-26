@@ -18,6 +18,7 @@ The sidebar contains these workspaces (some content depends on controller data a
 | Group | Workspaces and purpose |
 |---|---|
 | Command | Live Dashboard (aggregated parsing/fleet metrics); Assurance Lab (sample runs, corpus, drafts and retained fixtures); Field Integrity & Corpus Proof; Fleet & Sync. |
+| Assurance & Release | Assurance Lab; UPES · Parser Recovery; Approvals & Rollouts; Parser Fleet Sync; Signed Artifacts & Upgrades; Parser Creation Workspace; NUPIRE / EGPE. |
 | Policy | Parser Catalog & Priority; Parser Fleet Sync; Migration Center; KV Delimiter Config; Static Positional Patterns; Field Capture & Projection; Regex, Templates & Studio; Regex Pattern Library; Known Key Catalog; Semantic Extraction Policy. |
 | Parser Engines | Network Identity, URL, Email Address, and Encoded Subject capability pages. These inspect specialized engine behavior; RFC 2047 decoding is content decoding, not decryption. |
 | Runtime | Live Metadata; Quarantine & Reprocessing; API Monitor; Template Drift; Performance & Backpressure; Rollouts; Signed Artifacts & Upgrades. |
@@ -38,8 +39,59 @@ Operations and runtime views primarily show aggregated counters, hashes, service
 7. For several formats, use **Multi-log corpus validation**. Choose default family/parser dropdowns and enter a JSON array whose entries may contain `raw`, `service`, `parser_id`, `source`, `desired`, and `field_mapping`. Defaults apply only where a case omits them, so one corpus can mix automatic and exact parser cases. Include positive and negative cases, continuations, optional fields, and malformed/truncated records relevant to your source.
 8. To inspect a file, the upload panel accepts log/text, JSON/JSONL, CSV, and supported gzip/ZIP/TAR archives, subject to controller limits. The same family and parser selectors are sent to the controller for every extracted record. Hosted proxy uploads have a 4 MB UI limit; use the controller WebView for larger samples. Archives are expanded and validated server-side, not executed.
 9. To retain a fixture, run the sample and use the save-fixture form when shown. Retained fixtures are encrypted by the controller before private Supabase Storage, including the selected parser identity and bounded result summary. The Fixtures section provides retained case operations including authenticated download and purge. Purge is permanent and removes the fixture and revisions. Transient analysis does not retain the original log.
-10. For an unknown but representative format, open **NAPI Synthesis**. Supply at least two discovery cases, a separate held-out case, and optional negative raw examples. NAPI generates only bounded declarative candidates, checks exact fields and false positives, applies RE2 size/capture/instruction limits, and stores only sample hashes and evidence. A successful result is a draft; validate, submit, obtain independent approval, and publish it through the existing Parser Review Queue before rollout.
-11. For repeatable certification, open **Test Plans** and include the required scenarios: `parser-regression`, `failure-recovery`, `replay`, `destination-integration`, `performance`, or `security`. Open **Runs**, select the exact plan revision, retained fixture, and one scenario, then start the bounded run. The durable local scheduler stores plan hash/revision, timestamps, terminal state, source hash, score, counts, route, latency, and scenario-specific checks; it never copies the raw fixture into the run record. Queued/running runs can be cancelled, and interrupted `running` records are re-queued after a controller restart. The destination scenario validates a local JSON boundary and does not contact configured production endpoints. Download the JSON as evidence. Distributed external-job orchestration is outside this release.
+10. Use **Guided Parser Repair Studio (GPRS)** for the retained-failure-to-candidate workflow described below. Its failure and lifecycle tables use the existing quarantine and Assurance APIs; a preview never approves or activates a candidate.
+11. For an unknown but representative format, open **NAPI Synthesis**. Supply at least two discovery cases, a separate held-out case, and optional negative raw examples. NAPI generates only bounded declarative candidates, checks exact fields and false positives, applies RE2 size/capture/instruction limits, and stores only sample hashes and evidence. A successful result is a draft; validate, submit, obtain independent approval, and publish it through the existing parser lifecycle before rollout.
+12. For repeatable certification, open **Test Plans** and include the required scenarios: `parser-regression`, `failure-recovery`, `replay`, `destination-integration`, `performance`, or `security`. Open **Runs**, select the exact plan revision, retained fixture, and one scenario, then start the bounded run. The durable local scheduler stores plan hash/revision, timestamps, terminal state, source hash, score, counts, route, latency, and scenario-specific checks; it never copies the raw fixture into the run record. Queued/running runs can be cancelled, and interrupted `running` records are re-queued after a controller restart. The destination scenario validates a local JSON boundary and does not contact configured production endpoints. Download the JSON as evidence. Distributed external-job orchestration is outside this release.
+
+### Guided Parser Repair Studio (GPRS)
+
+The GPRS tab sits inside **Assurance Lab**. It combines retained quarantine
+records, Assurance previews, and the checksum-bound parser lifecycle already
+provided by the controller; it is not an automatic promotion service.
+
+1. Open GPRS and review **Failure inbox**. UPES health/counters come from the
+   canonical NURSF snapshot; record rows come from the quarantine API. Exact
+   source is available only for retained records. Empty tabs and unavailable
+   counters are valid when the controller has no such evidence.
+2. Select a retained failure and choose **Inspect & test**, or select a saved
+   fixture. Enter the expected JSON instance and optional field mapping, then
+   run the live preview. The JSON Schema box is reference text only; the current
+   API checks an expected JSON instance and does not validate a schema.
+3. Choose **Edit / create parser candidate** after preview. The Parser Creation
+   Helper opens with the selected samples and cases. Create and validate a
+   declarative draft; its checksum identifies the parser definition. Preview
+   and draft creation do not change a live parser.
+4. In **Candidate lifecycle**, submit a passing draft. A different reviewer
+   must approve it. The controller rechecks the artifact checksum at submit,
+   approval, and publish. **Withdraw** returns an in-review submission to draft.
+5. Publish an approved candidate through the normal parser bundle workflow.
+   Then obtain independent rollout approval and verify the originating client
+   reports the desired applied bundle hash before requesting replay.
+6. **Rollback** appears for an active published candidate. It makes that
+   candidate approved and inactive and rebuilds the desired parser bundle; it
+   does not immediately revert clients. Complete the ordinary rollout approval
+   and client hash verification to deliver the removal. Replay remains gated
+   by the server's record state, retry limit, target node, and applied hash.
+
+The UPES page has aggregate and per-client counters in the canonical snapshot,
+plus quarantine/NUPIRE-backed tabs. A counter-only heartbeat does not establish
+that individual failure signatures or discovery summaries are available.
+
+Its visible subtabs are **Live Failure Observatory**, **Recovery Decision
+Trace**, **Parser Repair Workshop**, **Knowledge Base**, **Discovery Jobs**,
+**Parser Health & Drift**, **Deployment & Rollback**, and **Runtime Health**.
+These are views over available sync, quarantine, and NUPIRE data; an empty or
+unavailable view is not evidence of an unseen worker. UPES observes/groups
+bounded failures. GPRS candidate review is controller-side and managed parser
+activation remains through the signed ParserPack workflow.
+
+AI is the final recovery option after deterministic parsing and UPES/GPRS
+diagnosis. The optional client-local Drain/AI discovery path stages a validated
+declarative candidate under the client state directory; it does not register it
+as active or assign it to a Drain cluster. Controller-side AI remediation also
+creates review-only evidence. Both paths require validation, independent
+approval, signed rollout, and client applied-hash acknowledgement before the
+parser can become live.
 
 An optional **Assurance parser workflow** can copy a live parser from its dropdown or start a custom definition, then accepts a name, version, declarative parser JSON and validation cases JSON. **Create and validate draft** creates a reviewable proposal. If a run provides a candidate parser, **Create candidate draft** can seed this workflow. Generated or AI-assisted definitions remain drafts and require the same deterministic validation and independent review as hand-authored parsers.
 
@@ -81,7 +133,7 @@ There are two related UI surfaces. Use **Parser Catalog & Priority** for runtime
 3. In the asset list use **submit** for a draft. A reviewer moves it through **approve** (or **reject**); then **publish** materializes the approved revision and starts Parser Fleet Sync. Available actions depend on the asset's state and your permission.
 4. In **Parser Fleet Sync**, inspect desired and controller-applied revision/hash, rollout progress/errors, automatic rollout policy, and each client’s heartbeat/applied hash/drift. Use **Verify** to refresh controller-reported state. **Propose retry** creates a rollout proposal; it still needs independent rollout approval. This page cannot publish, approve, or force assets onto clients.
 5. Confirm every target client's applied revision/hash matches desired and is not drifted. Then rerun the Assurance sample and check runtime metrics/Unknown & Quarantine for regressions.
-6. For an unpublished draft/rejected policy asset, **Delete** prompts for confirmation and deletes it. For an approved/published asset, the UI does not offer deletion; use a new reviewed revision to supersede the behavior. The current UI exposes rollout cancel, but no parser rollback button. If a published rollout must be reversed, do not improvise a direct UI operation: prepare and review a known-good prior definition as a new revision, then publish/roll it out under the normal approval flow. Verify the resulting applied hash.
+6. For an unpublished draft/rejected policy asset, **Delete** prompts for confirmation and deletes it. For an approved/published asset, the UI does not offer deletion. GPRS exposes **Rollback** for an active published parser candidate: it returns that candidate to approved/inactive and rebuilds the desired bundle through the existing rollout path. It does not immediately revert clients. Obtain rollout approval and verify each target's applied bundle hash before replay or declaring rollback complete.
 
 ### How to shape the asset JSON
 
@@ -117,7 +169,7 @@ The notification bell shows in-session progress, completion, and error messages 
 6. In **Parser Fleet Sync**, verify desired/applied hashes and propose rollout to selected or all eligible clients. Complete the separate rollout approval, then verify client acknowledgements and hashes before replay. Replay only the exact record IDs on their originating client; the controller rejects excluded, resolved, in-flight, dead-letter, or otherwise ineligible records. Client outcomes remain pending until per-record parser confirmation arrives.
 7. Records remain queued when parsing or customer-output delivery fails. Replay uses bounded 1, 5, 15, then 60 minute backoff and stops after five total attempts; the fifth unresolved result becomes `dead_letter` for manual attention. A controller/WebApp telemetry outage does not undo a successful customer delivery; the result marks telemetry separately.
 
-The complete normal and recovery execution order, including the full meanings of NHLE, NURSF, NAPI, NAL, NUPIRE, and EGPE, is documented in [Ver19 subsystem names and execution order](V19_SUBSYSTEM_ORCHESTRATION.md). The key boundary is that NHLE processes ordinary records, while NAPI, NAL, NUPIRE, and EGPE run only through explicit evidence and recovery workflows.
+The complete normal and recovery execution order, including UPES and GPRS plus the full meanings of NHLE, NURSF, NAPI, NAL, NUPIRE, and EGPE, is documented in [Ver19 subsystem names and execution order](V19_SUBSYSTEM_ORCHESTRATION.md). The key boundary is that NHLE processes ordinary records, while UPES observes bounded failure metadata and GPRS guides explicit evidence and review work; neither bypasses the existing signed rollout.
 
 ## 6. Users, roles and audit
 

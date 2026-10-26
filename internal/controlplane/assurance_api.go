@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -557,6 +559,18 @@ func validateParserCandidate(definition map[string]any, cases []assuranceRequest
 	}
 	return map[string]any{"total": total, "passed": passed, "failed": total - passed, "score": score, "results": outcomes}
 }
+
+// parserArtifactChecksum binds review and deployment to the exact declarative
+// parser submitted by the author. JSON map key order is canonicalized by the
+// standard encoder; the checksum deliberately excludes mutable lifecycle data.
+func parserArtifactChecksum(definition map[string]any) string {
+	encoded, err := json.Marshal(definition)
+	if err != nil {
+		return ""
+	}
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:])
+}
 func (s *Server) runParserCases(cases []assuranceRequest) map[string]any {
 	passed := 0
 	total := len(cases)
@@ -635,7 +649,7 @@ func (s *Server) handleAssuranceParsers(w http.ResponseWriter, r *http.Request) 
 		input.Parser["version"] = 1
 	}
 	validation := validateParserCandidate(input.Parser, input.Cases)
-	payload, _ := json.Marshal(map[string]any{"id": id, "name": input.Name, "version": input.Version, "parser": input.Parser, "cases": input.Cases, "validation": validation, "validation_passed": validation["failed"] == 0 && validation["total"] == len(input.Cases), "review_state": "draft", "activated": false, "source_quarantine_record_id": sourceEvidenceID})
+	payload, _ := json.Marshal(map[string]any{"id": id, "name": input.Name, "version": input.Version, "parser": input.Parser, "artifact_checksum": parserArtifactChecksum(input.Parser), "cases": input.Cases, "validation": validation, "validation_passed": validation["failed"] == 0 && validation["total"] == len(input.Cases), "review_state": "draft", "activated": false, "source_quarantine_record_id": sourceEvidenceID})
 	saved, err := s.metadata.Put(r.Context(), metastore.Document{Collection: "parser-packs", ID: id, State: "draft", Payload: payload, CreatedBy: p.Username})
 	if err != nil {
 		jsonError(w, "parser draft persistence failed", 500)
@@ -719,7 +733,7 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 			if !s.validateParserEvidenceLink(w, r, sourceEvidenceID) {
 				return
 			}
-			payload, _ := json.Marshal(map[string]any{"id": id, "name": input.Name, "version": input.Version, "parser": input.Parser, "cases": input.Cases, "validation": validation, "validation_passed": validation["failed"] == 0 && validation["total"] == len(input.Cases), "review_state": "draft", "activated": false, "source_quarantine_record_id": sourceEvidenceID})
+			payload, _ := json.Marshal(map[string]any{"id": id, "name": input.Name, "version": input.Version, "parser": input.Parser, "artifact_checksum": parserArtifactChecksum(input.Parser), "cases": input.Cases, "validation": validation, "validation_passed": validation["failed"] == 0 && validation["total"] == len(input.Cases), "review_state": "draft", "activated": false, "source_quarantine_record_id": sourceEvidenceID})
 			saved, err := s.metadata.Put(r.Context(), metastore.Document{Collection: "parser-packs", ID: id, State: "draft", Payload: payload, CreatedBy: doc.CreatedBy})
 			if err != nil {
 				jsonError(w, "parser draft update failed", 500)
@@ -748,7 +762,7 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 	permission := middleware.PermissionManageParsers
 	if action == "approve" || action == "reject" {
 		permission = middleware.PermissionReviewParsers
-	} else if action == "publish" {
+	} else if action == "publish" || action == "rollback" {
 		permission = middleware.PermissionTriggerRollout
 	}
 	p := s.authorize(w, r, permission)
@@ -803,7 +817,22 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "all parser validation cases must pass before review", 409)
 			return
 		}
+		definition, _ := body["parser"].(map[string]any)
+		checksum := parserArtifactChecksum(definition)
+		if checksum == "" || checksum != body["artifact_checksum"] {
+			jsonError(w, "parser artifact checksum changed; edit and resubmit the draft", 409)
+			return
+		}
+		body["submitted_checksum"] = checksum
 		body["review_state"] = "in_review"
+	case "cancel":
+		if doc.State != "in_review" {
+			jsonError(w, "only a submitted parser can be withdrawn", 409)
+			return
+		}
+		body["review_state"] = "draft"
+		body["withdrawn_by"] = p.Username
+		body["withdrawn_at"] = time.Now().UTC()
 	case "approve":
 		if doc.State != "in_review" {
 			jsonError(w, "parser is not awaiting review", 409)
@@ -813,8 +842,15 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "creator cannot approve their own parser", 409)
 			return
 		}
+		definition, _ := body["parser"].(map[string]any)
+		checksum := parserArtifactChecksum(definition)
+		if checksum == "" || checksum != body["submitted_checksum"] || checksum != body["artifact_checksum"] {
+			jsonError(w, "submitted parser artifact changed; approval is invalid", 409)
+			return
+		}
 		body["review_state"] = "approved"
 		body["reviewed_by"] = p.Username
+		body["approved_checksum"] = checksum
 	case "reject":
 		if doc.State != "in_review" {
 			jsonError(w, "parser is not awaiting review", 409)
@@ -833,6 +869,11 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		definition, _ := body["parser"].(map[string]any)
+		checksum := parserArtifactChecksum(definition)
+		if checksum == "" || checksum != body["approved_checksum"] || checksum != body["artifact_checksum"] {
+			jsonError(w, "approved parser artifact checksum no longer matches", 409)
+			return
+		}
 		var cases []assuranceRequest
 		if encoded, marshalErr := json.Marshal(body["cases"]); marshalErr == nil {
 			_ = json.Unmarshal(encoded, &cases)
@@ -847,6 +888,15 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 		body["review_state"] = "published"
 		body["activated"] = true
 		body["published_by"] = p.Username
+	case "rollback":
+		if doc.State != "published" || body["activated"] != true {
+			jsonError(w, "only an active published parser can be rolled back", 409)
+			return
+		}
+		body["review_state"] = "approved"
+		body["activated"] = false
+		body["rolled_back_by"] = p.Username
+		body["rolled_back_at"] = time.Now().UTC()
 	default:
 		jsonError(w, "unknown parser action", 404)
 		return
@@ -860,18 +910,18 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 	}
 	s.auditAction(p, "assurance.parser_"+action, "parser-packs/"+id, "success", nil)
 	response := map[string]any{"id": id, "revision": saved.Revision, "state": state, "review_state": state, "published": state == "published"}
-	if action == "publish" {
+	if action == "publish" || action == "rollback" {
 		bundle, bundleErr := s.buildActiveParserBundle(r.Context())
 		if bundleErr == nil {
 			_, bundleErr = s.materializeParserBundle(bundle)
 		}
 		var rollout *rolloutRecord
 		if bundleErr == nil {
-			rollout, bundleErr = s.startParserBundleRollout(r.Context(), p.Username, "Publish Assurance parser "+id, bundle, nil)
+			rollout, bundleErr = s.startParserBundleRollout(r.Context(), p.Username, "Assurance parser "+action+" "+id, bundle, nil)
 		}
 		if bundleErr != nil {
-			s.auditAction(p, "assurance.parser_publish_sync_failed", "parser-packs/"+id, "failure", map[string]string{"error": bundleErr.Error()})
-			jsonError(w, "parser published but signed fleet bundle could not be prepared: "+bundleErr.Error(), 503)
+			s.auditAction(p, "assurance.parser_"+action+"_sync_failed", "parser-packs/"+id, "failure", map[string]string{"error": bundleErr.Error()})
+			jsonError(w, "parser "+action+" state was saved but the signed fleet bundle could not be prepared: "+bundleErr.Error(), 503)
 			return
 		}
 		response["bundle_hash"] = bundle.BundleHash

@@ -1,5 +1,20 @@
 # Changelog
 
+## [19.0.0-6] - 2026-10-26
+
+- Add bounded UPES failure signatures, discovery queue metrics, and canonical snapshot visibility.
+- Add the Guided Parser Repair Studio (GPRS) checksum-bound candidate review lifecycle, with explicit withdrawal and rollback states.
+- Enforce deterministic parsing and UPES/GPRS recovery before AI; successful records never enter AI discovery, and validated AI output is staged for managed approval rather than activated locally.
+- Add five endpoint-configuration subtabs with explicit local-validation boundaries and live/rollback controls.
+- Document the actual UPES/GPRS boundaries and deployment acceptance gates.
+- Package the architecture guide and SVG with the release archive and both RPMs.
+
+## [19.0.0-5] - 2026-10-25
+
+- Make submitted, independently approved, and published input-path profile stages explicit before rollout proposal.
+- Add exact single-client targeting and a pending approval count for parser rollouts.
+- Persist bounded canonical one-minute telemetry buckets and distinguish durable counters from in-memory metadata series.
+
 ## [19.0.0-4] - 2026-10-25
 
 - Remove the unnecessary generic multiline continuation from line-oriented auto-family inputs while retaining explicit stack-trace assembly and restart-safe exactly-once output.

@@ -145,6 +145,22 @@ func TestPartitionRecoveryPreservesQueuedCommands(t *testing.T) {
 	}
 }
 
+func TestHeartbeatRetainsUPESMetrics(t *testing.T) {
+	manager := NewSyncManager(Config{})
+	request := &protocol.HeartbeatRequest{NodeID: "upes-node", Metrics: protocol.Metrics{
+		UPESMetricsAvailable: true, UPESUniqueFailureSignatures: 7,
+		UPESObservedFailures: 19, UPESDiscoveryQueued: 4,
+		UPESDiscoveryDropped: 2, UPESDiscoveryPending: 3,
+	}}
+	if err := manager.ProcessHeartbeat(request); err != nil {
+		t.Fatal(err)
+	}
+	state, ok := manager.GetClientSyncState("upes-node")
+	if !ok || !state.Metrics.UPESMetricsAvailable || state.Metrics.UPESUniqueFailureSignatures != 7 || state.Metrics.UPESObservedFailures != 19 || state.Metrics.UPESDiscoveryQueued != 4 || state.Metrics.UPESDiscoveryDropped != 2 || state.Metrics.UPESDiscoveryPending != 3 {
+		t.Fatalf("UPES counters were lost in sync heartbeat state: %+v", state)
+	}
+}
+
 func TestSignedRollbackCommand(t *testing.T) {
 	manifest, keys, now := signedManifest(t, 1)
 	manager := NewSyncManager(Config{TrustedManifestKeys: keys, MinimumClientVersion: "5.0.0"})

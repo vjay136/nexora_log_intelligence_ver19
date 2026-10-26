@@ -1114,6 +1114,7 @@ func readMetrics(endpoint string) protocol.Metrics {
 	}
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	metrics := protocol.Metrics{}
+	var upesMetricsSeen uint8
 	for _, line := range strings.Split(string(data), "\n") {
 		var value uint64
 		switch {
@@ -1129,8 +1130,39 @@ func readMetrics(endpoint string) protocol.Metrics {
 		case strings.HasPrefix(line, "nli_input_errors_total "):
 			fmt.Sscanf(line, "nli_input_errors_total %d", &value)
 			metrics.Errors = value
+		case strings.HasPrefix(line, "nli_upes_unique_failure_signatures_total "):
+			value, ok := parseMetricUint(line, "nli_upes_unique_failure_signatures_total")
+			metrics.UPESUniqueFailureSignatures = value
+			if ok {
+				upesMetricsSeen |= 1
+			}
+		case strings.HasPrefix(line, "nli_upes_observed_failures_total "):
+			value, ok := parseMetricUint(line, "nli_upes_observed_failures_total")
+			metrics.UPESObservedFailures = value
+			if ok {
+				upesMetricsSeen |= 2
+			}
+		case strings.HasPrefix(line, "nli_upes_discovery_queued_total "):
+			value, ok := parseMetricUint(line, "nli_upes_discovery_queued_total")
+			metrics.UPESDiscoveryQueued = value
+			if ok {
+				upesMetricsSeen |= 4
+			}
+		case strings.HasPrefix(line, "nli_upes_discovery_dropped_total "):
+			value, ok := parseMetricUint(line, "nli_upes_discovery_dropped_total")
+			metrics.UPESDiscoveryDropped = value
+			if ok {
+				upesMetricsSeen |= 8
+			}
+		case strings.HasPrefix(line, "nli_upes_discovery_pending "):
+			value, ok := parseMetricUint(line, "nli_upes_discovery_pending")
+			metrics.UPESDiscoveryPending = value
+			if ok {
+				upesMetricsSeen |= 16
+			}
 		}
 	}
+	metrics.UPESMetricsAvailable = upesMetricsSeen == 31
 	if metrics.Received > 0 {
 		metrics.ParseRate = float64(metrics.Parsed) / float64(metrics.Received) * 100
 	}
@@ -1142,6 +1174,11 @@ func readMetrics(endpoint string) protocol.Metrics {
 		metrics.HostMetricsAvailable = true
 	}
 	return metrics
+}
+
+func parseMetricUint(line, name string) (uint64, bool) {
+	value, err := strconv.ParseUint(strings.TrimSpace(strings.TrimPrefix(line, name)), 10, 64)
+	return value, err == nil
 }
 
 type hostMetrics struct {

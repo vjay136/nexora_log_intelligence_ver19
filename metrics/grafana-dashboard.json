@@ -68,6 +68,16 @@
       "targets":[{"expr":"sum by (node_id, source) (nli_stream_normalized_per_second)","legendFormat":"{{node_id}} / {{source}}","refId":"A"}],
       "title":"Observed stream normalization rate",
       "type":"timeseries"
+    },
+    {
+      "datasource": {"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults":{"unit":"ops"},"overrides":[]},
+      "gridPos":{"h":8,"w":24,"x":0,"y":24},
+      "id":6,
+      "options":{"legend":{"displayMode":"list","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},
+      "targets":[{"expr":"sum(nli_upes_discovery_pending)","legendFormat":"queued summaries now","refId":"A"},{"expr":"sum(increase(nli_upes_discovery_dropped_total[5m]))","legendFormat":"queue drops (5m)","refId":"B"},{"expr":"sum(rate(nli_upes_observed_failures_total[5m]))","legendFormat":"observed failures/s","refId":"C"}],
+      "title":"UPES bounded failure discovery",
+      "type":"timeseries"
     }
   ],
   "refresh":"30s",

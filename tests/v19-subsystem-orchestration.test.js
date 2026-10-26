@@ -15,6 +15,8 @@ test('subsystem workspaces explain every acronym and the truthful execution boun
     'Nexora Unified Real-Time Synchronization Fabric',
     'Nexora Universal Parsing Intelligence & Recovery Engine',
     'Evidence-Gated Parser Evolution',
+    'Unstoppable Parsing Engine Support',
+    'Guided Parser Repair Studio',
   ]) assert.ok(app.includes(name), `WebApp does not explain ${name}`);
   assert.ok(app.includes('Ordinary live record'), 'orchestration view must identify the live hot path');
   assert.ok(app.includes('Evidence-gated recovery'), 'orchestration view must identify the recovery path');
@@ -24,7 +26,9 @@ test('subsystem workspaces explain every acronym and the truthful execution boun
 test('operator orchestration document keeps successful and recovery paths separate', async () => {
   const guide = await readFile(resolve(root, 'docs/V19_SUBSYSTEM_ORCHESTRATION.md'), 'utf8');
   assert.match(guide, /source -> NHLE -> customer destination\/checkpoint -> NURSF telemetry -> WebApp/);
-  assert.match(guide, /quarantine -> NAL diagnosis -> optional NAPI\/NUPIRE\/EGPE evidence/);
+  assert.match(guide, /quarantine -> UPES bounded observation \+ operator GPRS\/NAL diagnosis -> optional NAPI\/NUPIRE\/EGPE evidence/);
   assert.match(guide, /Targeted replay remains blocked until the originating client acknowledges/);
-  assert.match(guide, /NAPI, NAL, NUPIRE, and EGPE do not execute during this successful-record path/);
+  assert.match(guide, /NAPI, NAL, NUPIRE, EGPE, UPES, and GPRS do not execute during this successful-record path/);
+  assert.match(guide, /AI as the final recovery option/);
+  assert.match(guide, /Successful records never enter the AI queue/);
 });

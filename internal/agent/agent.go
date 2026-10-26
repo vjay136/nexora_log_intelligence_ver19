@@ -34,6 +34,7 @@ import (
 	"nexora.local/nli-v19/internal/quarantine"
 	"nexora.local/nli-v19/internal/registry"
 	"nexora.local/nli-v19/internal/routing"
+	"nexora.local/nli-v19/internal/upes"
 	"nexora.local/nli-v19/telemetry"
 )
 
@@ -669,6 +670,7 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 
 	// AI discoverer
 	discoverer := ai.New(c.AI, deps.Registry, deps.Miner, c.StateDir)
+	upesRuntime := upes.New(upes.DefaultSignatureLimit, upes.DefaultQueueLimit)
 
 	// Default outputs if none configured
 	if len(c.Outputs) == 0 {
@@ -855,6 +857,14 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 				enrichment.Apply(v5Result.EventPayload.Fields, geo)
 			}
 			if v5Result.Success || v5Result.Quarantined {
+				if v5Result.Quarantined {
+					fingerprint, _ := engine.FormatFingerprint(line, "parserpack")
+					reason := "parserpack_validation_failure"
+					if len(v5Result.ParseTelemetry.ErrorCodes) > 0 {
+						reason = v5Result.ParseTelemetry.ErrorCodes[0]
+					}
+					upesRuntime.Observe(fingerprint, service, "parserpack_validation_error", reason)
+				}
 				if v5Result.Quarantined && len(quarantinePaths) > 0 {
 					metadata := v5Result.ParseTelemetry
 					record := quarantine.New(nodeID, t.input.Service, t.input.Path, uint64(t.state.Line+1), line, metadata.PolicyHash, metadata.AttemptCount, metadata.ErrorCodes, time.Now().UTC())
@@ -889,7 +899,10 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 					t.stream.quarantined.Add(1)
 				}
 				t.stream.addTotal(time.Since(started))
-				if v5Result.Success && v5Result.ParseTelemetry.TemplateID != "" {
+				// AI discovery is a last-resort recovery option. Successful records
+				// must never consume provider capacity or create parser candidates;
+				// only a failure already observed by UPES may enter this queue.
+				if v5Result.Quarantined && v5Result.ParseTelemetry.TemplateID != "" {
 					clusterID := 0
 					fmt.Sscanf(v5Result.ParseTelemetry.TemplateID, "tpl-%d", &clusterID)
 					if clusterID > 0 {
@@ -918,6 +931,23 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 			envelope.NLI.Parser = "unknown"
 			envelope.Meta.Route = "unknown"
 			envelope.Meta.Errors = append(envelope.Meta.Errors, integrityErrors...)
+		}
+		if envelope.Meta.Route == "unknown" || envelope.Meta.Route == "quarantine" {
+			failureClass := "no_parser_match"
+			if len(envelope.Meta.Errors) > 0 {
+				failureClass = "parser_or_validation_error"
+			}
+			if envelope.Meta.Assurance.Ambiguous {
+				failureClass = "ambiguous_output"
+			}
+			if truncated || oversized {
+				failureClass = "truncated_or_oversized_input"
+			}
+			reason := ""
+			if len(envelope.Meta.Errors) > 0 {
+				reason = envelope.Meta.Errors[0]
+			}
+			upesRuntime.Observe(envelope.Meta.Assurance.Fingerprint, service, failureClass, reason)
 		}
 
 		persister.Mark()
@@ -1043,7 +1073,8 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 			aiStats := discoverer.Stats()
-			fmt.Fprintf(w, "nli_logs_received_total %d\nnli_logs_parsed_total %d\nnli_logs_quarantined_total %d\nnli_logs_filtered_total %d\nnli_input_errors_total %d\nnli_ai_pending_clusters %d\nnli_ai_pending_dropped_total %d\nnli_ai_samples_truncated_total %d\n",
+			upesStats := upesRuntime.Stats()
+			fmt.Fprintf(w, "nli_logs_received_total %d\nnli_logs_parsed_total %d\nnli_logs_quarantined_total %d\nnli_logs_filtered_total %d\nnli_input_errors_total %d\nnli_ai_pending_clusters %d\nnli_ai_pending_dropped_total %d\nnli_ai_samples_truncated_total %d\nnli_upes_unique_failure_signatures_total %d\nnli_upes_observed_failures_total %d\nnli_upes_discovery_queued_total %d\nnli_upes_discovery_dropped_total %d\nnli_upes_discovery_pending %d\n",
 				atomic.LoadUint64(&metrics.received),
 				atomic.LoadUint64(&metrics.parsed),
 				atomic.LoadUint64(&metrics.quarantined),
@@ -1051,7 +1082,12 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 				atomic.LoadUint64(&metrics.failures),
 				aiStats.PendingClusters,
 				aiStats.DroppedPending,
-				aiStats.TruncatedSamples)
+				aiStats.TruncatedSamples,
+				upesStats.UniqueSignatures,
+				upesStats.ObservedFailures,
+				upesStats.QueuedDiscoveries,
+				upesStats.DroppedDiscoveries,
+				upesStats.PendingDiscoveries)
 		})
 		mux.HandleFunc("/stream-snapshot", func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {

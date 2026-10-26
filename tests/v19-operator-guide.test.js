@@ -15,7 +15,7 @@ test('V19 operator guide inventories every current primary navigation route', as
   for (const [id, title] of ids) {
     assert.ok(guide.includes(`\`${id}\``), `guide missing route id ${id} (${title})`);
   }
-  for (const label of ['Unified Sync Fabric', 'NHLE Live', 'NAPI Live', 'NAL Live', 'NUPIRE / EGPE', 'Monitoring (11 views)', 'Assurance Lab (10 tools)']) {
+  for (const label of ['Unified Sync Fabric', 'NHLE Live', 'NAPI Live', 'NAL Live', 'NUPIRE / EGPE', 'Monitoring (11 views)', 'Assurance Lab (11 tools)', 'UPES · Parser Recovery', 'Guided Parser Repair Studio (GPRS)']) {
     assert.ok(guide.includes(label), `guide missing significant workspace section ${label}`);
   }
 });

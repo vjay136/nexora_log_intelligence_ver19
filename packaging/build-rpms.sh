@@ -41,6 +41,8 @@ install -m 0644 "$ROOT/docs/WEBAPP_OPERATOR_AND_PARSER_GUIDE.md" "$OUTPUT_DIR/WE
 install -m 0644 "$ROOT/docs/V19_OPERATOR_DEMO_GUIDE.md" "$OUTPUT_DIR/V19_OPERATOR_DEMO_GUIDE.md"
 install -m 0644 "$ROOT/docs/V19_PRODUCTION_ACCEPTANCE_TESTS.md" "$OUTPUT_DIR/V19_PRODUCTION_ACCEPTANCE_TESTS.md"
 install -m 0644 "$ROOT/docs/V19_SUBSYSTEM_ORCHESTRATION.md" "$OUTPUT_DIR/V19_SUBSYSTEM_ORCHESTRATION.md"
+install -m 0644 "$ROOT/docs/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md" "$OUTPUT_DIR/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md"
+install -m 0644 "$ROOT/docs/architecture/NLI_V19_UPES_GPRS_ARCHITECTURE.svg" "$OUTPUT_DIR/NLI_V19_UPES_GPRS_ARCHITECTURE.svg"
 install -m 0644 "$ROOT/docs/V19_AWS_RED_HAT_INSTALLATION.md" "$OUTPUT_DIR/V19_AWS_RED_HAT_INSTALLATION.md"
 install -m 0644 "$ROOT/docs/V19_CLOUDFLARE_TUNNEL.md" "$OUTPUT_DIR/V19_CLOUDFLARE_TUNNEL.md"
 install -m 0644 "$ROOT/docs/VERCEL_DEPLOYMENT.md" "$OUTPUT_DIR/VERCEL_DEPLOYMENT.md"
@@ -61,7 +63,7 @@ normalize_lf "$OUTPUT_DIR/install-controller-ver19.sh" "$OUTPUT_DIR/install-clie
   "$OUTPUT_DIR/setup-cloudflare-tunnel-v19.sh" "$OUTPUT_DIR/verify-cloudflare-tunnel-v19.sh" \
   "$OUTPUT_DIR/uninstall-cloudflare-tunnel-v19.sh" "$OUTPUT_DIR/cloudflare-quick-diagnosis-v19.sh" \
   "$OUTPUT_DIR/vercel-preflight.mjs" \
-  "$OUTPUT_DIR/INSTALLATION_AND_CONFIGURATION.md" "$OUTPUT_DIR/WEBAPP_OPERATOR_AND_PARSER_GUIDE.md" "$OUTPUT_DIR/V19_OPERATOR_DEMO_GUIDE.md" "$OUTPUT_DIR/V19_PRODUCTION_ACCEPTANCE_TESTS.md" "$OUTPUT_DIR/V19_SUBSYSTEM_ORCHESTRATION.md" "$OUTPUT_DIR/V19_AWS_RED_HAT_INSTALLATION.md" \
+  "$OUTPUT_DIR/INSTALLATION_AND_CONFIGURATION.md" "$OUTPUT_DIR/WEBAPP_OPERATOR_AND_PARSER_GUIDE.md" "$OUTPUT_DIR/V19_OPERATOR_DEMO_GUIDE.md" "$OUTPUT_DIR/V19_PRODUCTION_ACCEPTANCE_TESTS.md" "$OUTPUT_DIR/V19_SUBSYSTEM_ORCHESTRATION.md" "$OUTPUT_DIR/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md" "$OUTPUT_DIR/NLI_V19_UPES_GPRS_ARCHITECTURE.svg" "$OUTPUT_DIR/V19_AWS_RED_HAT_INSTALLATION.md" \
   "$OUTPUT_DIR/V19_CLOUDFLARE_TUNNEL.md" "$OUTPUT_DIR/V19_MIGRATION_AND_ROLLBACK.md" "$OUTPUT_DIR/VERCEL_DEPLOYMENT.md" "$OUTPUT_DIR/CLOUDFLARE_PAGES_DEPLOYMENT.md" "$OUTPUT_DIR/PARSER_CATALOG.md" \
   "$OUTPUT_DIR/RELEASE_ID"
 
@@ -84,6 +86,7 @@ find "$ROOT/configs/parsers" -maxdepth 1 -type f -name '*.json' -print0 | LC_ALL
 install -m 0644 "$ROOT/packaging/systemd/nli-agent.service" "$ROOT/packaging/systemd/nli-client-control.service" "$ROOT/packaging/systemd/nli-client-bootstrap.service" "$CLIENT/systemd/"
 install -m 0644 "$ROOT/README.md" "$CLIENT/README.md"
 install -m 0644 "$ROOT/docs/PARSER_CATALOG.md" "$CLIENT/PARSER_CATALOG.md"
+install -m 0644 "$ROOT/docs/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md" "$ROOT/docs/architecture/NLI_V19_UPES_GPRS_ARCHITECTURE.svg" "$CLIENT/"
 mkdir -p "$CLIENT/metrics"
 install -m 0644 "$ROOT"/metrics/* "$CLIENT/metrics/"
 while IFS= read -r -d '' text_file; do normalize_lf "$text_file"; done < <(
@@ -135,6 +138,7 @@ install -m 0644 "$ROOT/configs/geoip.env" "$CONTROLLER/configs/geoip.env"
 install -m 0644 "$ROOT/packaging/systemd/nli-controller-agent.service" "$ROOT/packaging/systemd/nli-controller-bootstrap.service" "$ROOT/packaging/systemd/nli-geoip-update.service" "$ROOT/packaging/systemd/nli-geoip-update.timer" "$CONTROLLER/systemd/"
 cp -a "$WEB_ROOT/." "$CONTROLLER/web/"
 install -m 0644 "$ROOT/README.md" "$CONTROLLER/README.md"
+install -m 0644 "$ROOT/docs/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md" "$ROOT/docs/architecture/NLI_V19_UPES_GPRS_ARCHITECTURE.svg" "$CONTROLLER/"
 mkdir -p "$CONTROLLER/metrics"
 install -m 0644 "$ROOT"/metrics/* "$CONTROLLER/metrics/"
 while IFS= read -r -d '' text_file; do normalize_lf "$text_file"; done < <(
@@ -145,6 +149,7 @@ while IFS= read -r -d '' text_file; do normalize_lf "$text_file"; done < <(
   find "$CONTROLLER/metrics" -type f \( -name '*.md' -o -name '*.yml' -o -name '*.yaml' \) -print0
 )
 python3 "$ROOT/tests/release/metrics_packaging_test.py" --root "$ROOT" --stage "$CONTROLLER/metrics"
+python3 "$ROOT/tests/release/release_docs_packaging_test.py" --root "$ROOT" --output "$OUTPUT_DIR" --client "$CLIENT" --controller "$CONTROLLER"
 
 make_tarball() {
   local parent=$1 directory=$2 destination=$3
@@ -189,7 +194,7 @@ rpm -qpl "$OUTPUT_DIR/nli_controller_agent_ver19.rpm" >"$OUTPUT_DIR/nli_controll
 rpm -qp --qf '[%{FILENAMES} %{FILEMODES:perms} %{FILEUSERNAME} %{FILEGROUPNAME}\n]' "$OUTPUT_DIR/nli_client_ver19.rpm" >"$OUTPUT_DIR/nli_client_ver19.permissions.txt"
 rpm -qp --qf '[%{FILENAMES} %{FILEMODES:perms} %{FILEUSERNAME} %{FILEGROUPNAME}\n]' "$OUTPUT_DIR/nli_controller_agent_ver19.rpm" >"$OUTPUT_DIR/nli_controller_agent_ver19.permissions.txt"
 
-for required in /usr/bin/nli /usr/bin/nli-agent /usr/bin/nli-client-control /usr/bin/nli-bench /usr/sbin/nli-client-setup /etc/nli/nli.json /etc/nli/parsers /usr/share/doc/nli-client/PARSER_CATALOG.md /usr/share/nli/metrics/README.md /usr/share/nli/metrics/metric-catalog.json /usr/share/nli/metrics/prometheus-scrape.yml /usr/share/nli/metrics/grafana-dashboard.json /usr/lib/systemd/system/nli-agent.service /usr/lib/systemd/system/nli-client-control.service /usr/lib/systemd/system/nli-client-bootstrap.service /var/lib/nli /var/lib/nli-control-client /var/log/nli/input /var/log/nli/output; do
+for required in /usr/bin/nli /usr/bin/nli-agent /usr/bin/nli-client-control /usr/bin/nli-bench /usr/sbin/nli-client-setup /etc/nli/nli.json /etc/nli/parsers /usr/share/doc/nli-client/PARSER_CATALOG.md /usr/share/doc/nli-client/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md /usr/share/doc/nli-client/NLI_V19_UPES_GPRS_ARCHITECTURE.svg /usr/share/nli/metrics/README.md /usr/share/nli/metrics/metric-catalog.json /usr/share/nli/metrics/prometheus-scrape.yml /usr/share/nli/metrics/grafana-dashboard.json /usr/lib/systemd/system/nli-agent.service /usr/lib/systemd/system/nli-client-control.service /usr/lib/systemd/system/nli-client-bootstrap.service /var/lib/nli /var/lib/nli-control-client /var/log/nli/input /var/log/nli/output; do
   grep -Fxq "$required" "$OUTPUT_DIR/nli_client_ver19.files.txt" || fail "client payload missing $required"
 done
 mapfile -t profile_assets < <(find "$ROOT/configs/parsers" -maxdepth 1 -type f -name '*.parserpack.json' -printf '%f\n' | LC_ALL=C sort)
@@ -203,7 +208,7 @@ for asset in "${profile_assets[@]}"; do
   [[ -n $rpm_hash && $source_hash == "$rpm_hash" ]] || fail "reviewed profile differs in RPM: $asset"
 done
 [[ $(grep -Ec '^/etc/nli/parsers/[^/]+\.parserpack\.json$' "$OUTPUT_DIR/nli_client_ver19.files.txt") -eq ${#profile_assets[@]} ]] || fail "unexpected reviewed profile count in client RPM"
-for required in /usr/bin/nli-controller-agent /usr/bin/nli /usr/sbin/nli-controller-setup /usr/sbin/nli-supabase-setup /usr/sbin/nli-admin-reset /usr/share/nli/supabase/nli_schema.sql /usr/share/nli/metrics/README.md /usr/share/nli/metrics/metric-catalog.json /usr/share/nli/metrics/prometheus-scrape.yml /usr/share/nli/metrics/grafana-dashboard.json /etc/nli/controller.json /etc/nli/geoip.env /usr/lib/systemd/system/nli-controller-agent.service /usr/lib/systemd/system/nli-controller-bootstrap.service /usr/lib/systemd/system/nli-geoip-update.service /usr/lib/systemd/system/nli-geoip-update.timer /usr/share/nli/webview_ver19/index.html /usr/share/nli/webview_ver19/styles.css /usr/share/nli/webview_ver19/app.js /usr/share/nli/webview_ver19/nli-mark.svg /usr/share/nli/webview_ver19/nexora-logo-v19.png /usr/share/nli/webview_ver19/login-banner-v19.png /usr/share/nli/webview_ver19/nexora-poster-v19.png /usr/share/nli/webview_ver19/README.txt /usr/share/nli/webview_ver19/Open-NLI-WebView.ps1 /var/lib/nli-controller; do
+for required in /usr/bin/nli-controller-agent /usr/bin/nli /usr/sbin/nli-controller-setup /usr/sbin/nli-supabase-setup /usr/sbin/nli-admin-reset /usr/share/doc/nli-controller-agent/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md /usr/share/doc/nli-controller-agent/NLI_V19_UPES_GPRS_ARCHITECTURE.svg /usr/share/nli/supabase/nli_schema.sql /usr/share/nli/metrics/README.md /usr/share/nli/metrics/metric-catalog.json /usr/share/nli/metrics/prometheus-scrape.yml /usr/share/nli/metrics/grafana-dashboard.json /etc/nli/controller.json /etc/nli/geoip.env /usr/lib/systemd/system/nli-controller-agent.service /usr/lib/systemd/system/nli-controller-bootstrap.service /usr/lib/systemd/system/nli-geoip-update.service /usr/lib/systemd/system/nli-geoip-update.timer /usr/share/nli/webview_ver19/index.html /usr/share/nli/webview_ver19/styles.css /usr/share/nli/webview_ver19/app.js /usr/share/nli/webview_ver19/nli-mark.svg /usr/share/nli/webview_ver19/nexora-logo-v19.png /usr/share/nli/webview_ver19/login-banner-v19.png /usr/share/nli/webview_ver19/nexora-poster-v19.png /usr/share/nli/webview_ver19/README.txt /usr/share/nli/webview_ver19/Open-NLI-WebView.ps1 /var/lib/nli-controller; do
   grep -Fxq "$required" "$OUTPUT_DIR/nli_controller_agent_ver19.files.txt" || fail "controller payload missing $required"
 done
 ! grep -Eq 'webview_ver(1|5|6|7)(/|$)' "$OUTPUT_DIR/nli_controller_agent_ver19.files.txt" || fail "stale pre-V19 WebView payload"

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"nexora.local/nli-v19/internal/fleet"
+	"nexora.local/nli-v19/internal/protocol"
 	"nexora.local/nli-v19/telemetry"
 )
 
@@ -181,15 +182,15 @@ func TestCanonicalSyncAPIInitialSnapshotAndVersionedIngest(t *testing.T) {
 			CPUStatus          string  `json:"cpu_percent_status"`
 		} `json:"controller"`
 	}
-	if json.Unmarshal(data, &snapshot) != nil || snapshot.SchemaVersion != telemetry.SyncSchemaVersion || snapshot.Aggregate.SourceRecordsReadTotal != 4 || len(snapshot.Subsystems) != 7 || snapshot.Controller.Health != "ok" || snapshot.Controller.Version == "" || snapshot.Controller.UptimeSeconds < 0 || snapshot.Controller.CPUStatus != telemetry.FreshnessNotInstrumented {
+	if json.Unmarshal(data, &snapshot) != nil || snapshot.SchemaVersion != telemetry.SyncSchemaVersion || snapshot.Aggregate.SourceRecordsReadTotal != 4 || len(snapshot.Subsystems) != 8 || snapshot.Controller.Health != "ok" || snapshot.Controller.Version == "" || snapshot.Controller.UptimeSeconds < 0 || snapshot.Controller.CPUStatus != telemetry.FreshnessNotInstrumented {
 		t.Fatalf("canonical snapshot mismatch: %s", data)
 	}
-	for _, name := range []string{"nhle", "napi", "nal", "nursf", "delivery", "replay", "release_readiness"} {
+	for _, name := range []string{"nhle", "napi", "nal", "nursf", "delivery", "replay", "release_readiness", "upes"} {
 		var subsystem map[string]any
 		if err := json.Unmarshal(snapshot.Subsystems[name], &subsystem); err != nil {
 			t.Fatalf("decode %s subsystem: %v", name, err)
 		}
-		if subsystem["status"] == nil || subsystem["updated_at"] == nil {
+		if subsystem["status"] == nil || (name != "upes" && subsystem["updated_at"] == nil) {
 			t.Fatalf("%s subsystem lacks status or fresh timestamp: %s", name, snapshot.Subsystems[name])
 		}
 	}
@@ -257,5 +258,55 @@ func TestCanonicalSyncAPIInitialSnapshotAndVersionedIngest(t *testing.T) {
 	}
 	if event != "sync_heartbeat" {
 		t.Fatalf("quiet stream event = %q, want sync_heartbeat", event)
+	}
+}
+
+func TestCanonicalSyncSnapshotCarriesHeartbeatUPESMetrics(t *testing.T) {
+	f := newAPIFixture(t)
+	f.server.fleet.Register(&fleet.Node{ID: "upes-client", Hostname: "upes-client"})
+	f.server.fleet.Register(&fleet.Node{ID: "legacy-client", Hostname: "legacy-client"})
+	const token = "upes-client-token"
+	if err := f.server.fleet.SetToken("upes-client", token); err != nil {
+		t.Fatal(err)
+	}
+	requestBody, err := json.Marshal(protocol.HeartbeatRequest{
+		NodeID: "upes-client", Version: "19.0.0", Health: "online",
+		Metrics: protocol.Metrics{UPESMetricsAvailable: true, UPESUniqueFailureSignatures: 3,
+			UPESObservedFailures: 9, UPESDiscoveryQueued: 4, UPESDiscoveryDropped: 1, UPESDiscoveryPending: 2},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, _ := http.NewRequest(http.MethodPost, f.http.URL+"/api/v1/node/heartbeat", bytes.NewReader(requestBody))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+token)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("heartbeat returned %d", response.StatusCode)
+	}
+	response, data := f.request(http.MethodGet, "/api/v1/sync/snapshot", nil)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("canonical snapshot returned %d: %s", response.StatusCode, data)
+	}
+	var snapshot struct {
+		Subsystems map[string]json.RawMessage `json:"subsystems"`
+	}
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	var upes map[string]any
+	if err := json.Unmarshal(snapshot.Subsystems["upes"], &upes); err != nil {
+		t.Fatalf("decode canonical UPES state: %v; payload=%s", err, data)
+	}
+	if upes["status"] != "partial" || upes["clients_reporting"] != float64(1) || upes["unique_failure_signatures"] != float64(3) || upes["observed_failures"] != float64(9) || upes["discovery_queued"] != float64(4) || upes["discovery_dropped"] != float64(1) || upes["discovery_pending"] != float64(2) {
+		t.Fatalf("canonical UPES telemetry missing or fabricated: %+v", upes)
+	}
+	clients, ok := upes["clients"].([]any)
+	if !ok || len(clients) != 2 || clients[0].(map[string]any)["status"] == clients[1].(map[string]any)["status"] {
+		t.Fatalf("reporting and unsupported clients were not distinguished: %+v", upes["clients"])
 	}
 }
