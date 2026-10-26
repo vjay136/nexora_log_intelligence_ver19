@@ -313,7 +313,7 @@ test('Guided Parser Repair Studio inspects retained failures, uses AI only after
   await page.getByRole('tab', { name: 'Guided Parser Repair Studio' }).click();
   await expect(page.getByText('q-1', { exact: true }).first()).toBeVisible();
   await page.locator('[data-gprs-record="q-1"]').check();
-  const desired = page.locator('#gprs-preview-form [name=desired]');
+  const desired = page.locator('#gprs-preview-form [name=gprs_desired]');
   await desired.fill('{"user":"alice"}');
   await page.locator('#gprs-preview-form [name=mapping]').fill('{"username":"user"}');
   await page.getByRole('button', { name: 'Run live multi-record preview' }).click();
