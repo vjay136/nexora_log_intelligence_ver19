@@ -6,7 +6,7 @@ const tabs = [
   'projection','studio','regex','knownkeys','semantic','engine-network','engine-url','engine-email','engine-subject','outputs','metadata','unknowns','drift','performance','rollouts','artifacts','security','system','ai',
 ];
 const liveWorkspaceContracts = {
-  operations: { paths: ['/api/v1/sync/snapshot'], text: 'Parsing Operations Center' },
+  operations: { paths: ['/api/v1/sync/snapshot'], text: 'Command Center' },
   monitoring: { paths: [], text: 'NLI Monitoring' },
   assurance: { paths: ['/api/v1/assurance/cases','/api/v1/assurance/runs'], text: 'Production parser assurance' },
   streams: { paths: [], text: 'Streams' },
@@ -116,7 +116,7 @@ test('premium login loads runtime assets and rejects invalid credentials', async
   await expect(page.getByTestId('nav-operations')).toBeVisible();
 });
 
-test('V18 blank-panel regressions: every workspace renders authenticated controller responses', async ({ page }) => {
+test('V19 blank-panel regressions: every workspace renders authenticated controller responses', async ({ page }) => {
   // This single regression walks every authenticated workspace and validates
   // each API contract.  Give the packaged two-node gate enough time on a
   // cold, resource-constrained CI/Docker host without weakening per-action
@@ -131,7 +131,7 @@ test('V18 blank-panel regressions: every workspace renders authenticated control
     if (path.startsWith('/api/v1/') && response.ok()) successfulAPIs.add(path);
   });
   // Authentication bootstraps canonical sync before the response listener is
-  // registered. Fetch it once here so this test explicitly proves the V18
+  // registered. Fetch it once here so this test explicitly proves the V19
   // source-of-truth contract instead of requiring the legacy dashboard poll.
   const syncStatus = await page.evaluate(async () => {
     const response = await fetch('/api/v1/sync/snapshot', { credentials: 'same-origin' });
