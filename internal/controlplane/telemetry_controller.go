@@ -194,7 +194,7 @@ func (h *StreamHub) PublishBatch(batch telemetry.SyncBatch) telemetry.SyncIngest
 			sample.UpdatedAt = batch.CollectedAt
 		}
 		key := batch.NodeID + "\x00" + sample.Source
-		if previous, ok := h.latest[key]; ok && previous.ProcessGeneration == batch.ProcessGeneration && (sample.ReadLines < previous.ReadLines || sample.Normalized < previous.Normalized || sample.Quarantined < previous.Quarantined || sample.Bytes < previous.Bytes) {
+		if previous, ok := h.latest[key]; ok && previous.ProcessGeneration == batch.ProcessGeneration && (sample.ReadLines < previous.ReadLines || sample.Normalized < previous.Normalized || sample.Quarantined < previous.Quarantined || sample.ValidationAttempts < previous.ValidationAttempts || sample.ValidationPassed < previous.ValidationPassed || sample.ValidationFailed < previous.ValidationFailed || sample.Bytes < previous.Bytes) {
 			sample.DiagnosticCodes = append(sample.DiagnosticCodes, "counter_reset")
 			h.recordIssueLocked("counter_reset", "rate_calculation", "warning", "sync-fabric", batch.NodeID, sample.Source, "one or more cumulative counters decreased within the same process generation", "rates use the client observation and canonical totals restart from the received cumulative value", now)
 		}
@@ -352,10 +352,16 @@ func (h *StreamHub) aggregateFromSourcesLocked(sources []telemetry.StreamFileTel
 		aggregate.NormalizedRecordsTotal += sample.Normalized
 		aggregate.ParserFailedTotal += sample.Quarantined
 		aggregate.QuarantinedRecordsTotal += sample.Quarantined
+		aggregate.ValidationAttemptsTotal += sample.ValidationAttempts
+		aggregate.ValidationPassedTotal += sample.ValidationPassed
+		aggregate.ValidationFailedTotal += sample.ValidationFailed
 		aggregate.QueueDepth += sample.QueueDepth
 		aggregate.ReadLinesPerSecond += sample.ReadLinesPerSecond
 		aggregate.NormalizedPerSecond += sample.NormalizedPerSecond
 		aggregate.QuarantinedPerSecond += sample.QuarantinedPerSecond
+		aggregate.ValidationAttemptsPerSecond += sample.ValidationAttemptsPerSecond
+		aggregate.ValidationPassedPerSecond += sample.ValidationPassedPerSecond
+		aggregate.ValidationFailedPerSecond += sample.ValidationFailedPerSecond
 		aggregate.BytesPerSecond += sample.BytesPerSecond
 		if sample.Backpressure {
 			aggregate.BackpressureSourceCount++

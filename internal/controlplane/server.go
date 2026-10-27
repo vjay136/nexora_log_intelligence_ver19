@@ -783,7 +783,7 @@ func (s *Server) handleNodeHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 	for i := range request.StreamFiles {
 		sample := &request.StreamFiles[i]
-		if sample.Source == "" || len(sample.Source) > 4096 || sample.Phase == "" || sample.ReadLinesPerSecond < 0 || sample.NormalizedPerSecond < 0 || sample.QuarantinedPerSecond < 0 || sample.BytesPerSecond < 0 || sample.QueueDepth < 0 || sample.QueueCapacity < 0 || sample.ReadDuration < 0 || sample.ParseDuration < 0 || sample.OutputDuration < 0 || sample.TotalDuration < 0 || sample.ReadLines > 1<<60 || sample.Normalized > 1<<60 || sample.Quarantined > 1<<60 || sample.Bytes > 1<<60 || sample.Errors > 1<<60 || math.IsNaN(sample.ReadLinesPerSecond) || math.IsInf(sample.ReadLinesPerSecond, 0) || math.IsNaN(sample.BytesPerSecond) || math.IsInf(sample.BytesPerSecond, 0) {
+		if sample.Source == "" || len(sample.Source) > 4096 || sample.Phase == "" || sample.ReadLinesPerSecond < 0 || sample.NormalizedPerSecond < 0 || sample.QuarantinedPerSecond < 0 || sample.ValidationAttemptsPerSecond < 0 || sample.ValidationPassedPerSecond < 0 || sample.ValidationFailedPerSecond < 0 || sample.BytesPerSecond < 0 || sample.QueueDepth < 0 || sample.QueueCapacity < 0 || sample.ReadDuration < 0 || sample.ParseDuration < 0 || sample.OutputDuration < 0 || sample.TotalDuration < 0 || sample.ReadLines > 1<<60 || sample.Normalized > 1<<60 || sample.Quarantined > 1<<60 || sample.ValidationAttempts > 1<<60 || sample.ValidationPassed > 1<<60 || sample.ValidationFailed > 1<<60 || sample.Bytes > 1<<60 || sample.Errors > 1<<60 || math.IsNaN(sample.ReadLinesPerSecond) || math.IsInf(sample.ReadLinesPerSecond, 0) || math.IsNaN(sample.ValidationAttemptsPerSecond) || math.IsInf(sample.ValidationAttemptsPerSecond, 0) || math.IsNaN(sample.ValidationPassedPerSecond) || math.IsInf(sample.ValidationPassedPerSecond, 0) || math.IsNaN(sample.ValidationFailedPerSecond) || math.IsInf(sample.ValidationFailedPerSecond, 0) || math.IsNaN(sample.BytesPerSecond) || math.IsInf(sample.BytesPerSecond, 0) {
 			jsonError(w, "invalid stream file sample", http.StatusBadRequest)
 			return
 		}
@@ -833,8 +833,8 @@ func (s *Server) handleNodeStreamTelemetry(w http.ResponseWriter, r *http.Reques
 	}
 	for i := range request.StreamFiles {
 		sample := &request.StreamFiles[i]
-		values := []float64{sample.ReadLinesPerSecond, sample.NormalizedPerSecond, sample.QuarantinedPerSecond, sample.BytesPerSecond}
-		invalid := sample.Source == "" || len(sample.Source) > 4096 || sample.Phase == "" || sample.QueueDepth < 0 || sample.QueueCapacity < 0 || sample.SourceWorkers < 0 || sample.ReadDuration < 0 || sample.ParseDuration < 0 || sample.OutputDuration < 0 || sample.TotalDuration < 0 || sample.ReadLines > 1<<60 || sample.Normalized > 1<<60 || sample.Quarantined > 1<<60 || sample.Bytes > 1<<60 || sample.Errors > 1<<60
+		values := []float64{sample.ReadLinesPerSecond, sample.NormalizedPerSecond, sample.QuarantinedPerSecond, sample.ValidationAttemptsPerSecond, sample.ValidationPassedPerSecond, sample.ValidationFailedPerSecond, sample.BytesPerSecond}
+		invalid := sample.Source == "" || len(sample.Source) > 4096 || sample.Phase == "" || sample.QueueDepth < 0 || sample.QueueCapacity < 0 || sample.SourceWorkers < 0 || sample.ReadDuration < 0 || sample.ParseDuration < 0 || sample.OutputDuration < 0 || sample.TotalDuration < 0 || sample.ReadLines > 1<<60 || sample.Normalized > 1<<60 || sample.Quarantined > 1<<60 || sample.ValidationAttempts > 1<<60 || sample.ValidationPassed > 1<<60 || sample.ValidationFailed > 1<<60 || sample.Bytes > 1<<60 || sample.Errors > 1<<60
 		for _, value := range values {
 			if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
 				invalid = true

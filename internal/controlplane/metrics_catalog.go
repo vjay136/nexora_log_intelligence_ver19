@@ -49,10 +49,16 @@ var clientMetricDescriptors = []MetricDescriptor{
 	{Name: "nli_stream_read_lines_per_second", Group: "client", Type: "gauge", Help: "Latest source-reported read rate.", Labels: []string{"node_id", "source", "phase"}, Unit: "lines/second", Source: "latest stream telemetry"},
 	{Name: "nli_stream_normalized_per_second", Group: "client", Type: "gauge", Help: "Latest source-reported normalization rate.", Labels: []string{"node_id", "source", "phase"}, Unit: "records/second", Source: "latest stream telemetry"},
 	{Name: "nli_stream_quarantined_per_second", Group: "client", Type: "gauge", Help: "Latest source-reported quarantine rate.", Labels: []string{"node_id", "source", "phase"}, Unit: "records/second", Source: "latest stream telemetry"},
+	{Name: "nli_stream_validation_attempts_per_second", Group: "client", Type: "gauge", Help: "Latest source-reported validation attempt rate.", Labels: []string{"node_id", "source", "phase"}, Unit: "records/second", Source: "latest stream telemetry"},
+	{Name: "nli_stream_validation_passed_per_second", Group: "client", Type: "gauge", Help: "Latest source-reported validation pass rate.", Labels: []string{"node_id", "source", "phase"}, Unit: "records/second", Source: "latest stream telemetry"},
+	{Name: "nli_stream_validation_failed_per_second", Group: "client", Type: "gauge", Help: "Latest source-reported validation failure rate.", Labels: []string{"node_id", "source", "phase"}, Unit: "records/second", Source: "latest stream telemetry"},
 	{Name: "nli_stream_bytes_per_second", Group: "client", Type: "gauge", Help: "Latest source-reported byte rate.", Labels: []string{"node_id", "source", "phase"}, Unit: "bytes/second", Source: "latest stream telemetry"},
 	{Name: "nli_stream_read_lines_total", Group: "client", Type: "counter", Help: "Latest source cumulative lines read.", Labels: []string{"node_id", "source"}, Unit: "lines", Source: "latest stream telemetry"},
 	{Name: "nli_stream_normalized_total", Group: "client", Type: "counter", Help: "Latest source cumulative normalized records.", Labels: []string{"node_id", "source"}, Unit: "records", Source: "latest stream telemetry"},
 	{Name: "nli_stream_quarantined_total", Group: "client", Type: "counter", Help: "Latest source cumulative quarantined records.", Labels: []string{"node_id", "source"}, Unit: "records", Source: "latest stream telemetry"},
+	{Name: "nli_stream_validation_attempts_total", Group: "client", Type: "counter", Help: "Latest source cumulative validation attempts.", Labels: []string{"node_id", "source"}, Unit: "records", Source: "latest stream telemetry"},
+	{Name: "nli_stream_validation_passed_total", Group: "client", Type: "counter", Help: "Latest source cumulative validation passes.", Labels: []string{"node_id", "source"}, Unit: "records", Source: "latest stream telemetry"},
+	{Name: "nli_stream_validation_failed_total", Group: "client", Type: "counter", Help: "Latest source cumulative validation failures.", Labels: []string{"node_id", "source"}, Unit: "records", Source: "latest stream telemetry"},
 	{Name: "nli_stream_errors_total", Group: "client", Type: "counter", Help: "Latest source cumulative errors.", Labels: []string{"node_id", "source"}, Unit: "errors", Source: "latest stream telemetry"},
 	{Name: "nli_stream_queue_depth", Group: "client", Type: "gauge", Help: "Latest reported source queue depth.", Labels: []string{"node_id", "source"}, Unit: "records", Source: "latest stream telemetry"},
 	{Name: "nli_stream_queue_capacity", Group: "client", Type: "gauge", Help: "Latest reported source queue capacity.", Labels: []string{"node_id", "source"}, Unit: "records", Source: "latest stream telemetry"},
@@ -129,10 +135,16 @@ func (s *Server) handleOpenMetrics(w http.ResponseWriter, r *http.Request) {
 		emit("nli_stream_read_lines_per_second", file.ReadLinesPerSecond, phaseLabels...)
 		emit("nli_stream_normalized_per_second", file.NormalizedPerSecond, phaseLabels...)
 		emit("nli_stream_quarantined_per_second", file.QuarantinedPerSecond, phaseLabels...)
+		emit("nli_stream_validation_attempts_per_second", file.ValidationAttemptsPerSecond, phaseLabels...)
+		emit("nli_stream_validation_passed_per_second", file.ValidationPassedPerSecond, phaseLabels...)
+		emit("nli_stream_validation_failed_per_second", file.ValidationFailedPerSecond, phaseLabels...)
 		emit("nli_stream_bytes_per_second", file.BytesPerSecond, phaseLabels...)
 		emitUint("nli_stream_read_lines_total", file.ReadLines, labels...)
 		emitUint("nli_stream_normalized_total", file.Normalized, labels...)
 		emitUint("nli_stream_quarantined_total", file.Quarantined, labels...)
+		emitUint("nli_stream_validation_attempts_total", file.ValidationAttempts, labels...)
+		emitUint("nli_stream_validation_passed_total", file.ValidationPassed, labels...)
+		emitUint("nli_stream_validation_failed_total", file.ValidationFailed, labels...)
 		emitUint("nli_stream_errors_total", file.Errors, labels...)
 		emit("nli_stream_queue_depth", float64(file.QueueDepth), labels...)
 		emit("nli_stream_queue_capacity", float64(file.QueueCapacity), labels...)

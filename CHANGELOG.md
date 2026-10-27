@@ -1,5 +1,15 @@
 # Changelog
 
+## [19.0.0-7] - 2026-10-26
+
+- Publish authoritative per-source validation attempt, pass, and failure counters and rates from the client through the canonical synchronization snapshot and OpenMetrics endpoint.
+- Replace the Monitoring pipeline's static VALIDATE placeholder with measured live values and parser-path timing.
+- Fix non-empty NUPIRE/EGPE candidate rendering by preserving table rows as a collection.
+- Consolidate quarantine evidence, deterministic preview, declarative parser editing, validation, independent review, publication, client acknowledgement, replay, and rollback into the Guided Parser Repair Studio.
+- Add a dedicated nine-stage Quarantine Resolution Wizard with per-field add, rename, duplicate, reorder, delete, type, presence, extraction, transform, default, validation, evidence, confidence, and status controls.
+- Validate the exact `Note;systemlogs_for_data` fixture without fabricating the semicolon-delimited value; explicit delimiter and field-boundary confirmations are required before candidate generation.
+- Add browser regressions for every primary workspace and visible inner tab, the non-empty NUPIRE registry, measured validation telemetry, and the guided quarantine recovery workflow.
+
 ## [19.0.0-6] - 2026-10-26
 
 - Add bounded UPES failure signatures, discovery queue metrics, and canonical snapshot visibility.

@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 DOC = "V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md"
+WIZARD = "V19_QUARANTINE_RESOLUTION_WIZARD.md"
 DIAGRAM = "NLI_V19_UPES_GPRS_ARCHITECTURE.svg"
 
 
@@ -18,6 +19,7 @@ def fail(message: str) -> None:
 def validate(root: Path, output: Path, client: Path, controller: Path) -> None:
     sources = {
         DOC: root / "docs" / DOC,
+        WIZARD: root / "docs" / WIZARD,
         DIAGRAM: root / "docs" / "architecture" / DIAGRAM,
     }
     for name, source in sources.items():
@@ -30,7 +32,7 @@ def validate(root: Path, output: Path, client: Path, controller: Path) -> None:
 
     guide = sources[DOC].read_text(encoding="utf-8")
     for claim in (
-        "19.0.0-6",
+        "19.0.0-7",
         "does not accept or store a raw record or source path",
         "does not claim a",
         "submitted_checksum",
@@ -40,6 +42,19 @@ def validate(root: Path, output: Path, client: Path, controller: Path) -> None:
     ):
         if claim not in guide:
             fail(f"guide does not document the expected release boundary: {claim!r}")
+
+    wizard = sources[WIZARD].read_text(encoding="utf-8")
+    for claim in (
+        "nine-stage workflow",
+        "20250812 130035122+0100 aaa-gmailrgo009 mail 3609 0 140293768701696 Note;systemlogs_for_data",
+        "independent approval",
+        "originating client's exact applied",
+        "bundle acknowledgement",
+        "AI output is advisory",
+        "letters, digits, and underscores",
+    ):
+        if claim not in wizard:
+            fail(f"wizard guide does not document the expected boundary: {claim!r}")
 
     for relative in (
         "packaging/build-rpms.sh",
@@ -66,12 +81,12 @@ def validate(root: Path, output: Path, client: Path, controller: Path) -> None:
         "packaging/rpm/nli-client.spec",
         "packaging/rpm/nli-controller-agent.spec",
     ):
-        if "19.0.0-6" not in (root / relative).read_text(encoding="utf-8"):
+        if "19.0.0-7" not in (root / relative).read_text(encoding="utf-8"):
             fail(f"{relative} does not identify the current release")
 
     release_env = (root / "packaging" / "release.env").read_text(encoding="utf-8")
-    if "NLI_VERSION=19.0.0" not in release_env or "NLI_RELEASE=6" not in release_env:
-        fail("packaging release identity is not 19.0.0-6")
+    if "NLI_VERSION=19.0.0" not in release_env or "NLI_RELEASE=7" not in release_env:
+        fail("packaging release identity is not 19.0.0-7")
 
 
 def main() -> None:

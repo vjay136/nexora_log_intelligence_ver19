@@ -44,7 +44,7 @@ cp -a web/. %{buildroot}%{_datadir}/nli/webview_ver19/
 find %{buildroot}%{_datadir}/nli/webview_ver19 -type d -exec chmod 0755 {} +
 find %{buildroot}%{_datadir}/nli/webview_ver19 -type f -exec chmod 0644 {} +
 install -m 0644 README.md %{buildroot}%{_docdir}/%{name}/README.md
-install -m 0644 V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md NLI_V19_UPES_GPRS_ARCHITECTURE.svg %{buildroot}%{_docdir}/%{name}/
+install -m 0644 V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md V19_R7_TEST_RESULTS.md V19_QUARANTINE_RESOLUTION_WIZARD.md NLI_V19_UPES_GPRS_ARCHITECTURE.svg %{buildroot}%{_docdir}/%{name}/
 install -m 0644 metrics/README.md metrics/metric-catalog.json metrics/prometheus-scrape.yml metrics/grafana-dashboard.json %{buildroot}%{_datadir}/nli/metrics/
 
 %pre
@@ -101,9 +101,14 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %dir %attr(0750,nli,nli) /var/lib/nli-controller
 %doc %{_docdir}/%{name}/README.md
 %doc %{_docdir}/%{name}/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md
+%doc %{_docdir}/%{name}/V19_R7_TEST_RESULTS.md
+%doc %{_docdir}/%{name}/V19_QUARANTINE_RESOLUTION_WIZARD.md
 %doc %{_docdir}/%{name}/NLI_V19_UPES_GPRS_ARCHITECTURE.svg
 
 %changelog
+* Mon Oct 26 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-7
+- Add measured validation pipeline telemetry, NUPIRE fix, and R7 browser regressions
+
 * Mon Oct 26 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-6
 - Add bounded UPES failure discovery and the GPRS evidence-gated parser repair workflow.
 - Include the UPES/GPRS architecture and operator acceptance guide in release docs.

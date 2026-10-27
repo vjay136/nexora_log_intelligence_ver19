@@ -891,12 +891,15 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 				}
 				t.stream.addOutput(time.Since(outputStarted))
 				atomic.AddUint64(&metrics.received, 1)
+				t.stream.validationAttempts.Add(1)
 				if v5Result.Success {
 					atomic.AddUint64(&metrics.parsed, 1)
 					t.stream.normalized.Add(1)
+					t.stream.validationPassed.Add(1)
 				} else {
 					atomic.AddUint64(&metrics.quarantined, 1)
 					t.stream.quarantined.Add(1)
+					t.stream.validationFailed.Add(1)
 				}
 				t.stream.addTotal(time.Since(started))
 				// AI discovery is a last-resort recovery option. Successful records
@@ -1018,12 +1021,15 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 		}
 
 		atomic.AddUint64(&metrics.received, 1)
+		t.stream.validationAttempts.Add(1)
 		if envelope.Meta.Route == "normal" || envelope.Meta.Route == "warning" {
 			atomic.AddUint64(&metrics.parsed, 1)
 			t.stream.normalized.Add(1)
+			t.stream.validationPassed.Add(1)
 		} else {
 			atomic.AddUint64(&metrics.quarantined, 1)
 			t.stream.quarantined.Add(1)
+			t.stream.validationFailed.Add(1)
 		}
 		t.stream.addTotal(time.Since(started))
 		return nil

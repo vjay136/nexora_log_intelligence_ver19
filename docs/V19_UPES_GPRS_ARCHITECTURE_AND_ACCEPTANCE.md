@@ -1,6 +1,6 @@
 # Ver19 UPES and GPRS architecture and acceptance
 
-Release identity: `19.0.0-6`. This document describes the implementation
+Release identity: `19.0.0-7`. This document describes the implementation
 boundaries and the acceptance checks for the bounded parser-failure discovery
 and governed parser-candidate lifecycle work. It is an architecture and test
 guide; it does not declare the release build, deployment, or production

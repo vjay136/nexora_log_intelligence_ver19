@@ -4,10 +4,10 @@ import { readFile } from 'node:fs/promises';
 // These browser regressions verify frontend behavior independently of network
 // and database availability. e2e.spec.js separately exercises a real controller.
 const origin = 'http://127.0.0.1:4176';
-const tabs = ['operations', 'monitoring', 'streams', 'sync-fabric', 'nhle-monitor', 'napi-monitor', 'nal-monitor', 'assurance', 'upes', 'parser-workspace', 'nupire', 'api-monitor', 'field-integrity', 'fleet', 'parser-sync', 'clients', 'controller', 'parsers', 'migration', 'input-paths', 'kv', 'static', 'projection', 'studio', 'regex', 'knownkeys', 'semantic', 'engine-network', 'engine-url', 'engine-email', 'engine-subject', 'outputs', 'metadata', 'unknowns', 'drift', 'performance', 'rollouts', 'artifacts', 'security', 'system', 'communications', 'notifications', 'ai'];
+const tabs = ['operations', 'monitoring', 'streams', 'sync-fabric', 'nhle-monitor', 'napi-monitor', 'nal-monitor', 'assurance', 'quarantine-wizard', 'upes', 'parser-workspace', 'nupire', 'api-monitor', 'field-integrity', 'fleet', 'parser-sync', 'clients', 'controller', 'parsers', 'migration', 'input-paths', 'kv', 'static', 'projection', 'studio', 'regex', 'knownkeys', 'semantic', 'engine-network', 'engine-url', 'engine-email', 'engine-subject', 'outputs', 'metadata', 'unknowns', 'drift', 'performance', 'rollouts', 'artifacts', 'security', 'system', 'communications', 'notifications', 'ai'];
 const assets = Object.fromEntries(await Promise.all(['index.html', 'app.js', 'styles.css', 'nli-mark.svg', 'nexora-logo-v19.png', 'login-banner-v19.png', 'nexora-poster-v19.png'].map(async name => [name, await readFile(new URL(name, import.meta.url))])));
 
-async function mockController(page, { role = 'admin', healthIdentity = 'v19', upesSnapshot = null, assurancePassed = true } = {}) {
+async function mockController(page, { role = 'admin', healthIdentity = 'v19', upesSnapshot = null, assurancePassed = true, nupireCandidates = [], quarantineRaw = 'exact raw source line' } = {}) {
   const observed = [];
   const cases = [];
   const uploads = [];
@@ -47,7 +47,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19', up
     if (path === '/api/v1/auth/me') return authenticated ? fulfill({ username: 'test-operator', role, permissions: ['assurance:run'] }) : fulfill({ error: 'unauthorized' }, 401);
     if (path === '/api/v1/auth/csrf') return fulfill({ csrf_token: 'browser-test-csrf' });
     if (path === '/api/v1/auth/logout') { authenticated = false; return fulfill({ status: 'ok' }); }
-    if (path === '/api/v1/nupire/snapshot') return fulfill({ candidates: [], count: 0, evolution_state: 'available' });
+    if (path === '/api/v1/nupire/snapshot') return fulfill({ candidates: nupireCandidates, count: nupireCandidates.length, evolution_state: 'available' });
     if (path === '/api/v1/assurance/run') {
       const requestBody = request.postDataJSON();
       assuranceRequests.push(requestBody);
@@ -69,10 +69,10 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19', up
     if (path === '/api/v1/assurance/runs/run-1') return assuranceRuns.length?fulfill(assuranceRuns[0]):fulfill({error:'not found'},404);
     if (path === '/api/v1/assurance/plans') return fulfill({ plans: assurancePlans, count: assurancePlans.length });
     if (path.startsWith('/api/v1/assurance/plans/')) { const id=decodeURIComponent(path.split('/').at(-1)),index=assurancePlans.findIndex(item=>item.id===id);if(request.method()==='PUT'){const body=request.postDataJSON(),previous=assurancePlans[index],doc={id,revision:(previous?.revision||0)+1,state:'active',payload:body};if(index>=0)assurancePlans[index]=doc;else assurancePlans.push(doc);return fulfill({id,revision:doc.revision,state:'active'},201);}if(request.method()==='DELETE'){if(index>=0)assurancePlans.splice(index,1);return fulfill({status:'deleted'});}return index>=0?fulfill(assurancePlans[index]):fulfill({error:'not found'},404); }
-    if (path === '/api/v1/quarantine/records/q-1/raw') return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'text/plain' }, body: 'exact raw source line' });
-    if (path === '/api/v1/quarantine/records/q-1/analyze' && request.method() === 'POST') return fulfill({ raw_sha256: 'c'.repeat(64), record: { id: 'q-1', node_id: 'node-1', raw_available: true }, result: { raw: 'exact raw source line', passed: false, parser: { name: 'no-match' } }, parser_changed: false, review_state: 'analysis_only' });
+    if (path === '/api/v1/quarantine/records/q-1/raw') return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'text/plain' }, body: quarantineRaw });
+    if (path === '/api/v1/quarantine/records/q-1/analyze' && request.method() === 'POST') return fulfill({ raw_sha256: 'c'.repeat(64), record: { id: 'q-1', node_id: 'node-1', raw_available: true }, result: { raw: quarantineRaw, passed: false, parser: { name: 'no-match' } }, parser_changed: false, review_state: 'analysis_only' });
     if (path === '/api/v1/admin/ai-provider') return fulfill({ provider: { provider: 'openai', model: 'test-model', configured: false, enabled: false } });
-    if (path === '/api/v1/sync/snapshot') return fulfill({ schema_version: 'nli.sync.v1', revision: 7, generated_at: new Date().toISOString(), target_interval_ms: 1000, aggregate: { nli_source_records_read_total: 120, nli_source_bytes_read_total: 4096, nli_parser_records_succeeded_total: 116, nli_parser_records_failed_total: 1, nli_normalized_records_total: 116, nli_quarantined_records_total: 4, nli_queue_depth: 4, read_lines_per_second: 90, normalized_per_second: 87, quarantined_per_second: 3, bytes_per_second: 4096, backpressure_source_count: 0, nli_telemetry_propagation_delay_seconds_p95: 0.08 }, sources: [{ node_id: 'node-1', source: '/var/log/mail.log', process_generation: 'gen-1', sequence: 7, phase: 'tailing', counters: { nli_source_records_read_total: 120, nli_parser_records_succeeded_total: 116, nli_parser_records_failed_total: 1, nli_normalized_records_total: 116, nli_quarantined_records_total: 4 }, rates: { read_lines_per_second: 90, normalized_per_second: 87, quarantined_per_second: 3, bytes_per_second: 4096 }, queue: { nli_queue_depth: 4, queue_capacity: 128, backpressure: false }, controller_received_at: new Date().toISOString(), controller_processing_ms: 2, observed_propagation_delay_ms: 80, freshness: 'live', freshness_age_ms: 120, freshness_reason: 'within target', critical: false, diagnostic_codes: [] }], diagnostics: { subscribers: 1, tracked_sources: 1, live: 1, delayed: 0, stale: 0, disconnected: 0, accepted: 7, duplicate: 0, out_of_order: 0, sequence_gaps: 0, reconnects: 0, coalesced: 0, rejected: 0, missed_deadlines: 0, clock_skew: 0, propagation_delay_ms_p50: 35, propagation_delay_ms_p95: 80, propagation_delay_ms_p99: 95, issues: [{ code: 'parser_latency', stage: 'parser', severity: 'warning', component: 'NHLE', node_id: 'node-1', source: '/var/log/mail.log', reason: 'parser latency exceeded warning threshold', recommended_action: 'Inspect parser trace and queue saturation.', last_seen: new Date().toISOString(), occurrences: 1 }] }, controller: { health: 'ok', version: '19.0.0', uptime_seconds: 600, process_memory_alloc_bytes: 33554432, process_memory_sys_bytes: 67108864, cpu_count: 4, goroutines: 12, open_file_descriptors: 21 }, infrastructure: { clients: [{ node_id: 'node-1', hostname: 'mail-node-1', cpu_percent: 18, memory_percent: 31, memory_bytes: 1073741824, load_1m: .4, load_5m: .3, load_15m: .2, updated_at: new Date().toISOString() }] }, subsystems: { nhle: { status: 'live', updated_at: new Date().toISOString(), source_count: 1, active_nodes: 1, records_read_total: 120, normalized_total: 116, quarantined_total: 4, queue_depth: 4, backpressure_sources: 0, read_lines_per_second: 90, normalized_per_second: 87 }, napi: { status: 'live', updated_at: new Date().toISOString(), requests_total: 3, failures_total: 0, pending_drafts: 1, latest_proposal_at: new Date().toISOString() }, nal: { status: 'live', updated_at: new Date().toISOString(), total: 5, queued: 1, running: 1, passed: 3, failed: 0, cancelled: 0, latest_run_at: new Date().toISOString() }, delivery: { status: 'ready', updated_at: new Date().toISOString(), acknowledgements_by_destination: { Loki: { delivered: 116, failed: 1 } }, retry_backlog_latency_status: 'not_instrumented' }, replay: { status: 'ready', state: 'queued', updated_at: new Date().toISOString(), queued: 1, reprocessing: 1, resolved: 2, oldest_queued_age_seconds: 45, attempts_total: 3 }, release_readiness: { status: 'ready', state: 'ready', updated_at: new Date().toISOString(), managed_nodes: 1, release_drifted_nodes: 0, evidence: 'persisted desired and reported active release hashes' } } });
+    if (path === '/api/v1/sync/snapshot') return fulfill({ schema_version: 'nli.sync.v1', revision: 7, generated_at: new Date().toISOString(), target_interval_ms: 1000, aggregate: { nli_source_records_read_total: 120, nli_source_bytes_read_total: 4096, nli_parser_records_succeeded_total: 116, nli_parser_records_failed_total: 4, nli_normalized_records_total: 116, nli_quarantined_records_total: 4, nli_validation_attempts_total: 120, nli_validation_passed_total: 116, nli_validation_failed_total: 4, nli_queue_depth: 4, read_lines_per_second: 90, normalized_per_second: 87, quarantined_per_second: 3, validation_attempts_per_second: 90, validation_passed_per_second: 87, validation_failed_per_second: 3, bytes_per_second: 4096, backpressure_source_count: 0, nli_telemetry_propagation_delay_seconds_p95: 0.08 }, sources: [{ node_id: 'node-1', source: '/var/log/mail.log', process_generation: 'gen-1', sequence: 7, phase: 'tailing', counters: { nli_source_records_read_total: 120, nli_parser_records_succeeded_total: 116, nli_parser_records_failed_total: 4, nli_normalized_records_total: 116, nli_quarantined_records_total: 4, nli_validation_attempts_total: 120, nli_validation_passed_total: 116, nli_validation_failed_total: 4 }, rates: { read_lines_per_second: 90, normalized_per_second: 87, quarantined_per_second: 3, validation_attempts_per_second: 90, validation_passed_per_second: 87, validation_failed_per_second: 3, bytes_per_second: 4096 }, queue: { nli_queue_depth: 4, queue_capacity: 128, backpressure: false }, controller_received_at: new Date().toISOString(), controller_processing_ms: 2, observed_propagation_delay_ms: 80, freshness: 'live', freshness_age_ms: 120, freshness_reason: 'within target', critical: false, diagnostic_codes: [] }], diagnostics: { subscribers: 1, tracked_sources: 1, live: 1, delayed: 0, stale: 0, disconnected: 0, accepted: 7, duplicate: 0, out_of_order: 0, sequence_gaps: 0, reconnects: 0, coalesced: 0, rejected: 0, missed_deadlines: 0, clock_skew: 0, propagation_delay_ms_p50: 35, propagation_delay_ms_p95: 80, propagation_delay_ms_p99: 95, issues: [{ code: 'parser_latency', stage: 'parser', severity: 'warning', component: 'NHLE', node_id: 'node-1', source: '/var/log/mail.log', reason: 'parser latency exceeded warning threshold', recommended_action: 'Inspect parser trace and queue saturation.', last_seen: new Date().toISOString(), occurrences: 1 }] }, controller: { health: 'ok', version: '19.0.0', uptime_seconds: 600, process_memory_alloc_bytes: 33554432, process_memory_sys_bytes: 67108864, cpu_count: 4, goroutines: 12, open_file_descriptors: 21 }, infrastructure: { clients: [{ node_id: 'node-1', hostname: 'mail-node-1', cpu_percent: 18, memory_percent: 31, memory_bytes: 1073741824, load_1m: .4, load_5m: .3, load_15m: .2, updated_at: new Date().toISOString() }] }, subsystems: { nhle: { status: 'live', updated_at: new Date().toISOString(), source_count: 1, active_nodes: 1, records_read_total: 120, normalized_total: 116, quarantined_total: 4, queue_depth: 4, backpressure_sources: 0, read_lines_per_second: 90, normalized_per_second: 87 }, napi: { status: 'live', updated_at: new Date().toISOString(), requests_total: 3, failures_total: 0, pending_drafts: 1, latest_proposal_at: new Date().toISOString() }, nal: { status: 'live', updated_at: new Date().toISOString(), total: 5, queued: 1, running: 1, passed: 3, failed: 0, cancelled: 0, latest_run_at: new Date().toISOString() }, delivery: { status: 'ready', updated_at: new Date().toISOString(), acknowledgements_by_destination: { Loki: { delivered: 116, failed: 1 } }, retry_backlog_latency_status: 'not_instrumented' }, replay: { status: 'ready', state: 'queued', updated_at: new Date().toISOString(), queued: 1, reprocessing: 1, resolved: 2, oldest_queued_age_seconds: 45, attempts_total: 3 }, release_readiness: { status: 'ready', state: 'ready', updated_at: new Date().toISOString(), managed_nodes: 1, release_drifted_nodes: 0, evidence: 'persisted desired and reported active release hashes' } } });
     if (path === '/api/v1/sync/stream') return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'text/event-stream', 'cache-control': 'no-cache' }, body: '' });
     if (path === '/api/v1/dashboard/snapshot') return fulfill({ overview: { fleet: { total: 1, online: 1 }, metadata: {}, storage: { mode: 'supabase', status: 'connected' } }, metadata: { records: [{ record: { node_id: 'node-1', service: 'smtp-in', parser_id: 'smtp-in/reviewed', route: 'normal', result: 'success', latency_ms: 2, timestamp: '2026-10-17T05:00:00Z' } }], routes: { normal: 1 } }, system: { health: 'ok', version: '19.0.0', storage: { mode: 'supabase', status: 'connected' } }, ai_usage: { requests: 0 }, fleet_sync: { nodes: [{ node: { id: 'node-1', hostname: 'mail-node-1', status: 'online', last_seen: '2026-10-17T05:00:00Z', issues: [], metrics: { logs_received: 120, logs_parsed: 116, logs_quarantined: 4, parse_rate_pct: 96.67, parse_latency_ms: 2.4, cpu_percent: 18, memory_percent: 31 } }, sync: { drifted: false } }] }, timeseries: { from: '2026-10-17T04:58:00Z', to: '2026-10-17T05:00:00Z', points: [{ timestamp: '2026-10-17T04:59:00Z', logs_received: 60, logs_parsed: 58, logs_quarantined: 2, errors: 1, parse_latency_ms_avg: 2.2 }, { timestamp: '2026-10-17T05:00:00Z', logs_received: 60, logs_parsed: 58, logs_quarantined: 2, errors: 0, parse_latency_ms_avg: 2.6 }], system: { controller_cpu_count: 4, controller_goroutines: 12, controller_memory_alloc_bytes: 33554432 } }, stream_files: [{ node_id: 'node-1', source: '/var/log/nli/input/smtp-in.log', phase: 'tailing', read_lines_per_second: 90, normalized_per_second: 87, quarantined_per_second: 3, queue_depth: 4, queue_capacity: 128, backpressure: false, read_duration_ns: 1000000, parse_duration_ns: 2000000, output_duration_ns: 3000000, updated_at: '2026-10-17T05:00:00Z' }] });
     if (path === '/api/v1/overview') return fulfill({ fleet: {}, metadata: {}, storage: { mode: 'supabase', status: 'connected' } });
@@ -86,6 +86,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19', up
     if (path.startsWith('/api/v1/metrics/timeseries')) { const params=new URL(request.url()).searchParams;historyQueries.push(params);const key=params.toString(),call=historyCounts[key]=(historyCounts[key]||0)+1,read=key.includes('range=24h')&&call>1?'42':'9007199254740993',parsed=read==='42'?'40':'9007199254740990'; return fulfill({ from: '2026-10-25T00:00:00Z', to: '2026-10-25T01:00:00Z', canonical_history: { bucket_width_seconds: 60, points: [{timestamp:'2026-10-25T00:59:00Z',read_delta:read,parsed_delta:parsed,quarantine_delta:'2',errors:1}] }, points: [{ timestamp: '2026-10-25T00:59:00Z', received: read, parsed, quarantine: 2, errors: 1, logs_received: read, logs_parsed: parsed, logs_quarantined: 2 }] }); }
     if (path === '/api/v1/verification/sample-corpus') return fulfill({ verdict: 'pass', known_key_inventory: { declared_family_keys: 278, covered_family_keys: 278, unmapped_family_keys: 0 }, totals: { records: 728, accounted_records: 728, parsed_records: 723, exact_parity_records: 723, failing_records: 0, expected_quarantined_records: 5, unexpected_quarantined_records: 0, parsed_comparable_raw_fields: 13101, parsed_generated_json_fields: 13101 }, families: [{ family: 'IMAP', records: 52, passing_records: 52, comparable_raw_fields: 1154, generated_json_fields: 1154, duplicate_occurrences: 0 }], records: [{ corpus: 'samples.log', source_line: 50, family: 'SMTP-OUT', expected_disposition: 'quarantined', disposition_reason: 'truncated record', record_sha256: 'a'.repeat(64) }] });
     if (path === '/api/v1/admin/ai-usage') return fulfill({ requests: 0, tokens: 0, pending_drafts: 0 });
+    if (path === '/api/v1/fleet') return fulfill({ nodes: [{ id: 'node-1', hostname: 'mail-node-1', status: 'online', last_seen: '2026-10-17T05:00:00Z' }] });
     if (path === '/api/v1/fleet/sync') return fulfill({ nodes: [{ node: { id: 'node-1', hostname: 'mail-node-1', status: 'online', last_seen: '2026-10-17T05:00:00Z' }, sync: { drifted: false } }] });
     if (path === '/api/v1/parser-sync' && request.method() === 'GET') return fulfill({ count: 1, assets: [{ asset_class: 'regex', asset_id: 'nginx-access', name: 'Nginx access pattern', desired: { revision: 3, sha256: 'a'.repeat(64), state: 'published' }, controller: { revision: 3, sha256: 'a'.repeat(64), status: 'applied' }, auto_rollout: { enabled: true, status: 'enabled' }, rollout: { id: 'rollout-1', status: 'complete', total_nodes: 1, done_nodes: 1, failed_nodes: 0, errors: [] }, clients: [{ node_id: 'node-1', desired_revision: 3, desired_hash: 'a'.repeat(64), applied_revision: 3, applied_hash: 'a'.repeat(64), last_seen: '2026-10-09T10:00:00Z', status: 'online', drifted: false }] }] });
     if (path === '/api/v1/parser-sync/verify' && request.method() === 'POST') return fulfill({ verified: true, message: 'Reported state refreshed' });
@@ -163,6 +164,32 @@ test('all workspaces render and audit is visible', async ({ page }) => {
   await expect(page.getByText('Notifications', { exact: true })).toBeVisible();
 });
 
+test('every visible inner tab activates without browser, request, or render errors', async ({ page }) => {
+  const { observed } = await mockController(page);
+  const errors = [];
+  const failedResponses = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('response', response => { if (response.status() >= 500) failedResponses.push(`${response.status()} ${new URL(response.url()).pathname}`); });
+  await login(page);
+  for (const workspace of tabs) {
+    await page.getByTestId(`nav-${workspace}`).click();
+    await expect(page.locator('.loading-state')).toHaveCount(0);
+    await expect(page.locator('.error-state')).toHaveCount(0);
+    const innerTabs = page.locator('#page [role=tab]:visible');
+    const count = await innerTabs.count();
+    for (let index = 0; index < count; index += 1) {
+      const tab = innerTabs.nth(index);
+      await tab.click();
+      await expect(tab).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('.error-state')).toHaveCount(0);
+      await expect(page.locator('#page')).not.toContainText(/rows\.join is not a function|Request failed|NaN|undefined/);
+    }
+  }
+  expect(errors).toEqual([]);
+  expect(failedResponses).toEqual([]);
+  expect(observed.length).toBeGreaterThan(40);
+});
+
 test('one canonical synchronization snapshot feeds Command Center, NHLE, NAPI and NAL', async ({ page }) => {
   await mockController(page);
   await login(page);
@@ -214,6 +241,13 @@ test('Monitoring exposes eleven canonical dashboards using only the shared recov
   await expect(page.locator('[data-monitoring-panel=overview]')).toContainText('Ingestion');
   await expect(page.locator('[data-monitoring-panel=overview]')).toContainText('90 rec/s');
   await expect(page.locator('.monitoring-freshness')).toContainText('Revision 7');
+
+  await page.getByRole('tab', { name: 'Pipeline' }).click();
+  const validateRow=page.locator('[data-monitoring-panel=pipeline] tr').filter({hasText:'VALIDATE'});
+  await expect(validateRow).toContainText('90 rec/s');
+  await expect(validateRow).toContainText('87 rec/s');
+  await expect(validateRow).toContainText('3 rec/s failed validation');
+  await expect(validateRow).not.toContainText('NOT REPORTED');
 
   await page.getByRole('tab', { name: 'Latency & Synchronization' }).click();
   await expect(page.locator('[data-monitoring-panel=latency]')).toBeVisible();
@@ -274,11 +308,20 @@ test('NUPIRE workspace displays an explicit empty candidate state', async ({ pag
   await expect(page.getByText('No candidates')).toHaveCount(5);
 });
 
+test('NUPIRE candidate registry renders non-empty controller results', async ({ page }) => {
+  await mockController(page, { nupireCandidates: [{ id: 'candidate-structured-mail', state: 'evaluated', digest: 'a'.repeat(64), metrics: { samples: 12, exact_matches: 12 }, updated_at: '2026-10-26T12:00:00Z' }] });
+  await login(page);
+  await page.getByTestId('nav-nupire').click();
+  await expect(page.getByRole('button', { name: 'candidate-structured-mail' })).toBeVisible();
+  await expect(page.locator('#page')).toContainText('12 exact / 12 samples');
+  await expect(page.locator('.error-state')).toHaveCount(0);
+});
+
 test('navigation leads with Command Center, Assurance Lab, approvals and notifications', async ({ page }) => {
   await mockController(page);
   await login(page);
   const ids=await page.locator('.nav-item').evaluateAll(items=>items.map(item=>item.dataset.page));
-  expect(ids.slice(0,13)).toEqual(['operations','monitoring','streams','assurance','upes','rollouts','parser-sync','artifacts','parser-workspace','nupire','field-integrity','ai','notifications']);
+  expect(ids.slice(0,14)).toEqual(['operations','monitoring','streams','assurance','quarantine-wizard','upes','rollouts','parser-sync','artifacts','parser-workspace','nupire','field-integrity','ai','notifications']);
   const input=ids.indexOf('input-paths'),output=ids.indexOf('outputs'),parsing=ids.indexOf('kv');
   expect(ids[input+1]).toBe('migration');
   expect(ids[input+2]).toBe('outputs');
@@ -312,18 +355,78 @@ test('Guided Parser Repair Studio inspects retained failures, uses AI only after
   await page.getByTestId('nav-assurance').click();
   await page.getByRole('tab', { name: 'Guided Parser Repair Studio' }).click();
   await expect(page.getByText('q-1', { exact: true }).first()).toBeVisible();
+  await expect(page.locator('.quarantine-wizard [data-wizard-step]')).toHaveCount(9);
+  await expect(page.locator('#gprs-preview-form [name=manual_field_name]')).toBeVisible();
+  await expect(page.locator('#gprs-preview-form [name=manual_field_index]')).toBeVisible();
+  await expect(page.locator('#gprs-preview-form [name=manual_delimiter]')).toBeVisible();
+  await expect(page.locator('#gprs-preview-form [name=manual_template]')).toBeVisible();
+  await expect(page.locator('#gprs-preview-form [name=manual_regex]')).toBeVisible();
   await page.locator('[data-gprs-record="q-1"]').check();
   const desired = page.locator('#gprs-preview-form [name=gprs_desired]');
   await desired.fill('{"user":"alice"}');
   await page.locator('#gprs-preview-form [name=mapping]').fill('{"username":"user"}');
-  await page.getByRole('button', { name: 'Run live multi-record preview' }).click();
+  await page.getByRole('button', { name: 'Run deterministic preview' }).click();
   await expect(page.getByTestId('gprs-preview')).toContainText('records_tested');
   await expect(page.getByRole('button', { name: 'Ask AI to diagnose and propose a fix' })).toBeVisible();
   expect(mock.observed).toContain('POST /api/v1/quarantine/records/q-1/analyze');
   expect(mock.assuranceRequests.at(-1).desired).toEqual({ user: 'alice' });
-  await page.getByRole('button', { name: 'Edit / create parser candidate' }).click();
-  await expect(page.getByRole('tab', { name: 'Parser Creation Helper' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#parser-helper-form [name=samples]')).toHaveValue('exact raw source line');
+  await page.getByRole('button', { name: 'Create parser candidate' }).click();
+  await expect(page.getByRole('tab', { name: 'Guided Parser Repair Studio' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#assurance-panel-gprs #gprs-parser-helper-form')).toBeVisible();
+  await expect(page.locator('#gprs-parser-helper-form [name=samples]')).toHaveValue('exact raw source line');
+});
+
+test('Quarantine Resolution Wizard maps the required unstructured fixture without fabricating delimiter values and saves a governed candidate', async ({ page }) => {
+  const raw='20250812 130035122+0100 aaa-gmailrgo009 mail 3609 0 140293768701696 Note;systemlogs_for_data';
+  const mock=await mockController(page,{quarantineRaw:raw,assurancePassed:true});
+  await login(page);
+  await page.getByTestId('nav-quarantine-wizard').click();
+  await expect(page.locator('#page').getByRole('heading',{name:'Quarantine Resolution Wizard',exact:true})).toBeVisible();
+  await expect(page.locator('.quarantine-wizard [data-wizard-step]')).toHaveCount(9);
+  await page.getByRole('button',{name:'Inspect',exact:true}).click();
+  await expect(page.locator('#gprs-preview-form [name=raw_evidence]')).toHaveValue(raw);
+  await page.getByRole('button',{name:'Suggest from raw log'}).click();
+  await expect(page.locator('[data-qrw-key=name]')).toHaveCount(9);
+  await expect(page.locator('[data-qrw-key=name]').nth(0)).toHaveValue('date');
+  await expect(page.locator('[data-qrw-key=name]').nth(7)).toHaveValue('event_type');
+  await expect(page.getByRole('button',{name:'Back: inspect raw log'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Next: generate candidate'})).toBeVisible();
+  await expect(page.locator('[data-qrw-key=timestamp_format]')).toHaveCount(9);
+  await expect(page.locator('[data-qrw-key=null_policy]')).toHaveCount(9);
+  const editor=page.locator('#gprs-parser-helper-form');
+  const initialParser=await editor.locator('[name=parser]').inputValue();
+  await page.getByRole('button',{name:'Test all fields'}).click();
+  await expect(page.locator('#qrw-field-status')).toContainText('2 field mapping error');
+  await page.getByRole('button',{name:'Run deterministic preview'}).click();
+  await page.getByRole('button',{name:'Create parser candidate'}).click();
+  await expect(page.getByRole('alert').last()).toContainText('invalid field');
+  await expect(editor.locator('[name=parser]')).toHaveValue(initialParser);
+  const confirmations=page.getByLabel('Confirm delimiter interpretation');
+  await expect(confirmations).toHaveCount(2);
+  await confirmations.nth(0).check();
+  await confirmations.nth(1).check();
+  await expect(confirmations.nth(0)).toBeChecked();
+  await expect(confirmations.nth(1)).toBeChecked();
+  await page.getByRole('button',{name:'Test all fields'}).click();
+  await expect(page.locator('#qrw-field-status')).toContainText('9 fields mapped');
+  const desired=JSON.parse(await page.locator('#gprs-preview-form [name=gprs_desired]').inputValue());
+  expect(desired).toMatchObject({date:'20250812',hostname:'aaa-gmailrgo009',service:'mail',pid:3609,status:0,minor_pid:140293768701696,event_type:'Note',event_name:'systemlogs_for_data'});
+  await page.getByRole('button',{name:'Run deterministic preview'}).click();
+  await expect.poll(()=>mock.observed.includes('POST /api/v1/quarantine/records/q-1/analyze')).toBe(true);
+  await page.locator('[data-qrw-key=transform]').first().selectOption('lowercase');
+  await page.getByRole('button',{name:'Test all fields'}).click();
+  await page.getByRole('button',{name:'Create parser candidate'}).click();
+  await expect(page.getByRole('alert').last()).toContainText('preview-only transform');
+  await expect(editor.locator('[name=parser]')).toHaveValue(initialParser);
+  await page.locator('[data-qrw-key=transform]').first().selectOption('none');
+  await page.getByRole('button',{name:'Test all fields'}).click();
+  await page.getByRole('button',{name:'Create parser candidate'}).click();
+  await expect(editor).toBeVisible();
+  const parser=JSON.parse(await editor.locator('[name=parser]').inputValue());
+  expect(parser.pattern).toContain('(?P<event_type>');
+  expect(parser.provenance).toMatchObject({kind:'quarantine_resolution_wizard',generated_from_verified_evidence:true});
+  await editor.getByRole('button',{name:'Save review-gated draft'}).click();
+  await expect.poll(()=>mock.observed.includes('POST /api/v1/assurance/parsers')).toBe(true);
 });
 
 test('premium login keeps the square V19 emblem and banner fully contained on desktop and mobile', async ({ page }) => {
@@ -677,7 +780,7 @@ test('production Assurance response fills helper using normalized backend propos
   expect(parser.header_pattern).toMatchObject({ kind: 'line', prefix: 'level=' });
   expect(parser.template).toEqual({ level: '{level}', user: '{user}' });
   await expect(page.locator('#parser-helper-overview')).toContainText('key_value');
-  await page.getByRole('button', { name: 'Save review-gated draft' }).click();
+  await form.getByRole('button', { name: 'Save review-gated draft' }).click();
   await expect.poll(()=>observed.includes('POST /api/v1/assurance/parsers')).toBe(true);
   expect(observed.some(path=>/assurance\/parsers\/.*\/(approve|publish)/.test(path))).toBe(false);
 });
@@ -702,7 +805,7 @@ test('Assurance helper trims trailing whitespace, generates editable parser, val
   await expect(page.locator('#parser-helper-overview')).toContainText('key_value_regex');
   await page.getByRole('button', { name: 'Validate draft', exact: true }).click();
   await expect.poll(() => observed.includes('POST /api/v1/assurance/corpus')).toBe(true);
-  await page.getByRole('button', { name: 'Save review-gated draft' }).click();
+  await form.getByRole('button', { name: 'Save review-gated draft' }).click();
   await expect.poll(() => observed.includes('POST /api/v1/assurance/parsers')).toBe(true);
   expect(observed.some(path => /assurance\/parsers\/.*\/(approve|publish)/.test(path))).toBe(false);
 });
@@ -717,8 +820,8 @@ test('quarantine diagnosis opens a truthful guided parser recovery workspace', a
   await expect(page.getByText(/Replay stays blocked until node-1 acknowledges the published bundle/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Prepare replay' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Edit or test parser' }).click();
-  await expect(page.locator('#parser-helper-form')).toBeVisible();
-  await expect(page.locator('#parser-helper-form [name=samples]')).toHaveValue('exact raw source line');
+  await expect(page.locator('#gprs-parser-helper-form')).toBeVisible();
+  await expect(page.locator('#gprs-parser-helper-form [name=samples]')).toHaveValue('exact raw source line');
 });
 
 test('Parser Creation Workspace builds a complete editable draft without publishing', async ({ page }) => {

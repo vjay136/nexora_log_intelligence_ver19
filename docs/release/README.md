@@ -1,6 +1,36 @@
 # NLI v19 release infrastructure
 
-## Release 19.0.0-6
+## Release 19.0.0-7
+
+Release 7 adds authoritative validation attempt, pass, and failure telemetry
+to the client, canonical controller snapshot, Monitoring pipeline, and
+OpenMetrics output. It fixes non-empty NUPIRE/EGPE registry rendering and
+consolidates quarantine recovery into one Guided Parser Repair Studio flow:
+evidence, manual field/delimiter/template/regex guidance, deterministic
+preview, review-gated candidate, independent approval, publication, client
+acknowledgement, targeted replay, and rollback.
+
+The dedicated Quarantine Resolution Wizard presents the same governed APIs as
+a persistent nine-stage operator flow with per-field schema, mapping,
+validation, evidence, confidence, and status controls. It blocks unresolved
+fields and requires explicit confirmation of ambiguous delimiter boundaries.
+
+The release gate exercises representative structured and unstructured records,
+exact normalized/quarantine accounting, all primary workspaces and visible
+inner tabs, the real controller APIs, reproducible RPM creation, and Rocky 9
+and Rocky 10.2 upgrade lifecycles. See `V19_R7_TEST_RESULTS.md` in the release
+archive for the verified commands, sample classes, and results.
+See `V19_QUARANTINE_RESOLUTION_WIZARD.md` for the operator workflow, exact
+unstructured fixture, data boundaries, deployment checks, and rollback path.
+
+### Operator acceptance for release 7
+
+1. Upgrade both controller and clients to `19.0.0-7`; confirm the Monitoring → Pipeline VALIDATE row shows measured attempt/pass/failure rates.
+2. Put representative JSON, key/value, syslog, delimiter, positional, multiline, and deliberately unstructured records into a clean input. Confirm `read = normalized + quarantined` and that restart does not duplicate output.
+3. Open Assurance Lab → Guided Parser Repair Studio for a retained quarantine record. Complete evidence, define, validate, review/publish, client acknowledgement, replay, and rollback checks without leaving the guided workflow.
+4. Confirm NUPIRE/EGPE renders both an empty registry and a persisted candidate without a browser exception.
+
+## Previous release: 19.0.0-6
 
 Release 6 adds bounded UPES failure-signature aggregation and the Guided Parser
 Repair Studio (GPRS) candidate checksum, withdrawal, independent-review,

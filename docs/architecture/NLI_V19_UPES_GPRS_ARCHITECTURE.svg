@@ -8,7 +8,7 @@
     <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8z" fill="#36577d"/></marker>
   </defs>
   <rect class="bg" width="1400" height="650"/>
-  <text class="title" x="50" y="52">Ver19 release 19.0.0-6: UPES observation and governed parser lifecycle</text>
+  <text class="title" x="50" y="52">Ver19 release 19.0.0-7: UPES observation and governed parser lifecycle</text>
   <rect class="box hot" x="50" y="105" width="270" height="145"/>
   <text class="head" x="75" y="140">Client parser path</text>
   <text class="body" x="75" y="174">Parse / validate</text>

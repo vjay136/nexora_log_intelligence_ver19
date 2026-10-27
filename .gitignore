@@ -11,6 +11,9 @@ build/
 .cache/
 .preview/
 node_modules/
+debug.log
+test-results/
+playwright-report/
 __pycache__/
 *.py[cod]
 # Keep every dotenv file local, including Vercel environment files and nested copies.

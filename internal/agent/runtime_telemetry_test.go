@@ -18,10 +18,16 @@ func TestStreamTelemetryFirstPublishStartsRateBaselineAtCurrentCounters(t *testi
 		t.Fatalf("first sample lost cumulative counts: %+v", first)
 	}
 	state.readLines.Add(10)
+	state.validationAttempts.Add(10)
+	state.validationPassed.Add(9)
+	state.validationFailed.Add(1)
 	state.bytes.Add(1000)
 	second := state.publish("/source.log", "reading", 8, 256, time.Unix(101, 0))
 	if second.ReadLinesPerSecond != 10 || second.BytesPerSecond != 1000 {
 		t.Fatalf("rates include pre-baseline counters: %+v", second)
+	}
+	if second.ValidationAttemptsPerSecond != 10 || second.ValidationPassedPerSecond != 9 || second.ValidationFailedPerSecond != 1 || second.ValidationAttempts != 10 || second.ValidationPassed != 9 || second.ValidationFailed != 1 {
+		t.Fatalf("validation counters/rates were not published exactly: %+v", second)
 	}
 }
 

@@ -79,20 +79,26 @@ type SyncDiagnostics struct {
 }
 
 type SyncAggregate struct {
-	SourceRecordsReadTotal     uint64  `json:"nli_source_records_read_total"`
-	SourceBytesReadTotal       uint64  `json:"nli_source_bytes_read_total"`
-	ParserSucceededTotal       uint64  `json:"nli_parser_records_succeeded_total"`
-	ParserFailedTotal          uint64  `json:"nli_parser_records_failed_total"`
-	NormalizedRecordsTotal     uint64  `json:"nli_normalized_records_total"`
-	QuarantinedRecordsTotal    uint64  `json:"nli_quarantined_records_total"`
-	QueueDepth                 int     `json:"nli_queue_depth"`
-	ReadLinesPerSecond         float64 `json:"read_lines_per_second"`
-	NormalizedPerSecond        float64 `json:"normalized_per_second"`
-	QuarantinedPerSecond       float64 `json:"quarantined_per_second"`
-	BytesPerSecond             float64 `json:"bytes_per_second"`
-	BackpressureSourceCount    int     `json:"backpressure_source_count"`
-	TelemetryLastSuccessUnix   int64   `json:"nli_telemetry_last_success_timestamp"`
-	PropagationDelaySecondsP95 float64 `json:"nli_telemetry_propagation_delay_seconds_p95,omitempty"`
+	SourceRecordsReadTotal      uint64  `json:"nli_source_records_read_total"`
+	SourceBytesReadTotal        uint64  `json:"nli_source_bytes_read_total"`
+	ParserSucceededTotal        uint64  `json:"nli_parser_records_succeeded_total"`
+	ParserFailedTotal           uint64  `json:"nli_parser_records_failed_total"`
+	NormalizedRecordsTotal      uint64  `json:"nli_normalized_records_total"`
+	QuarantinedRecordsTotal     uint64  `json:"nli_quarantined_records_total"`
+	ValidationAttemptsTotal     uint64  `json:"nli_validation_attempts_total"`
+	ValidationPassedTotal       uint64  `json:"nli_validation_passed_total"`
+	ValidationFailedTotal       uint64  `json:"nli_validation_failed_total"`
+	QueueDepth                  int     `json:"nli_queue_depth"`
+	ReadLinesPerSecond          float64 `json:"read_lines_per_second"`
+	NormalizedPerSecond         float64 `json:"normalized_per_second"`
+	QuarantinedPerSecond        float64 `json:"quarantined_per_second"`
+	ValidationAttemptsPerSecond float64 `json:"validation_attempts_per_second"`
+	ValidationPassedPerSecond   float64 `json:"validation_passed_per_second"`
+	ValidationFailedPerSecond   float64 `json:"validation_failed_per_second"`
+	BytesPerSecond              float64 `json:"bytes_per_second"`
+	BackpressureSourceCount     int     `json:"backpressure_source_count"`
+	TelemetryLastSuccessUnix    int64   `json:"nli_telemetry_last_success_timestamp"`
+	PropagationDelaySecondsP95  float64 `json:"nli_telemetry_propagation_delay_seconds_p95,omitempty"`
 }
 
 type SyncSnapshot struct {

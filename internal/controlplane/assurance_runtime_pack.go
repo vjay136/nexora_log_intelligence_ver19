@@ -3,8 +3,10 @@ package controlplane
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,7 +48,59 @@ func assuranceRuntimePack(id, version, author string, definition map[string]any,
 		if value, ok := field["type"].(string); ok && value != "" {
 			fieldType = parserpolicy.FieldType(value)
 		}
-		schema[name] = parserpolicy.FieldDef{Type: fieldType}
+		required, _ := field["required"].(bool)
+		definition := parserpolicy.FieldDef{Type: fieldType, Required: required}
+		validation, _ := field["validation"].(string)
+		for _, rawRule := range strings.Split(validation, ",") {
+			rule := strings.TrimSpace(rawRule)
+			if rule == "" {
+				continue
+			}
+			parts := strings.SplitN(rule, "=", 2)
+			if len(parts) != 2 || strings.TrimSpace(parts[1]) == "" {
+				return nil, fmt.Errorf("field %q validation rule %q is invalid", name, rule)
+			}
+			kind, value := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+			switch kind {
+			case "min", "max":
+				if fieldType != parserpolicy.FieldTypeInt && fieldType != parserpolicy.FieldTypeFloat {
+					return nil, fmt.Errorf("field %q range validation requires int or float type", name)
+				}
+				parsed, parseErr := strconv.ParseFloat(value, 64)
+				if parseErr != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+					return nil, fmt.Errorf("field %q validation rule %q has an invalid number", name, rule)
+				}
+				if definition.Range == nil {
+					definition.Range = &parserpolicy.RangeConstraint{}
+				}
+				if kind == "min" {
+					definition.Range.Min = &parsed
+				} else {
+					definition.Range.Max = &parsed
+				}
+			case "one_of":
+				values := strings.Split(value, "|")
+				if len(values) > 100 {
+					return nil, fmt.Errorf("field %q enum exceeds the 100-value runtime limit", name)
+				}
+				definition.Enum = definition.Enum[:0]
+				seen := map[string]struct{}{}
+				for _, enumValue := range values {
+					enumValue = strings.TrimSpace(enumValue)
+					if enumValue == "" {
+						return nil, fmt.Errorf("field %q enum values cannot be empty", name)
+					}
+					if _, exists := seen[enumValue]; exists {
+						continue
+					}
+					seen[enumValue] = struct{}{}
+					definition.Enum = append(definition.Enum, enumValue)
+				}
+			default:
+				return nil, fmt.Errorf("field %q validation %q is unsupported by the runtime", name, kind)
+			}
+		}
+		schema[name] = definition
 	}
 	service := ""
 	if len(cases) != 0 {

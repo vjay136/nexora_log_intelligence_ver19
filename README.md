@@ -26,12 +26,18 @@ unavailable measurements remain explicit. See the [NUPIRE architecture](docs/V19
 [baseline gap audit](docs/V19_BASELINE_CAPABILITY_GAP.md), and
 [research ledger](docs/V19_RESEARCH_AND_LICENSE_LEDGER.md).
 
-Release `19.0.0-6` adds bounded client-side UPES failure signatures and the
-checksum-bound Guided Parser Repair Studio (GPRS) candidate review lifecycle. The workflow keeps
+Release `19.0.0-7` adds authoritative validation-stage telemetry, repairs
+non-empty NUPIRE/EGPE rendering, and provides a dedicated nine-stage
+Quarantine Resolution Wizard over the checksum-bound Guided Parser Repair
+Studio lifecycle. Operators can inspect retained evidence, define and validate
+field mappings, generate and test a bounded declarative candidate, request
+independent approval, verify signed rollout acknowledgement, replay, and
+rollback without switching between unrelated workspaces. The workflow keeps
 withdrawal, independent approval, publication, and rollback distinct from
 client activation, which continues through the signed parser-bundle rollout.
 See the [UPES/GPRS architecture and acceptance guide](docs/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md)
-and its [architecture diagram](docs/architecture/NLI_V19_UPES_GPRS_ARCHITECTURE.svg).
+the [Quarantine Resolution Wizard guide](docs/V19_QUARANTINE_RESOLUTION_WIZARD.md),
+and the [architecture diagram](docs/architecture/NLI_V19_UPES_GPRS_ARCHITECTURE.svg).
 
 ## V18 baseline capabilities retained in Ver19
 

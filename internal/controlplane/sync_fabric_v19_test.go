@@ -21,7 +21,7 @@ func syncBatch(node, generation string, sequence uint64, files ...telemetry.Stre
 }
 
 func source(path string, read, normalized, quarantined uint64) telemetry.StreamFileTelemetry {
-	return telemetry.StreamFileTelemetry{Source: path, Phase: "reading", ReadLines: read, Normalized: normalized, Quarantined: quarantined, Bytes: read * 100, UpdatedAt: time.Now().UTC()}
+	return telemetry.StreamFileTelemetry{Source: path, Phase: "reading", ReadLines: read, Normalized: normalized, Quarantined: quarantined, ValidationAttempts: normalized + quarantined, ValidationPassed: normalized, ValidationFailed: quarantined, Bytes: read * 100, UpdatedAt: time.Now().UTC()}
 }
 
 func TestSyncFabricOrderingReconnectAndCanonicalAggregate(t *testing.T) {
@@ -47,7 +47,7 @@ func TestSyncFabricOrderingReconnectAndCanonicalAggregate(t *testing.T) {
 		t.Fatalf("new process generation rejected: %+v", restarted)
 	}
 	snapshot := hub.CanonicalSnapshot()
-	if len(snapshot.Sources) != 1 || snapshot.Aggregate.SourceRecordsReadTotal != 1 || snapshot.Aggregate.NormalizedRecordsTotal != 1 {
+	if len(snapshot.Sources) != 1 || snapshot.Aggregate.SourceRecordsReadTotal != 1 || snapshot.Aggregate.NormalizedRecordsTotal != 1 || snapshot.Aggregate.ValidationAttemptsTotal != 1 || snapshot.Aggregate.ValidationPassedTotal != 1 || snapshot.Aggregate.ValidationFailedTotal != 0 {
 		t.Fatalf("full snapshot/restart did not replace canonical state: %+v", snapshot)
 	}
 	if snapshot.Diagnostics.DuplicateBatches != 1 || snapshot.Diagnostics.OutOfOrderBatches != 1 || snapshot.Diagnostics.SequenceGaps != 2 || snapshot.Diagnostics.Reconnects != 1 {
