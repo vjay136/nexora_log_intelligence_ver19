@@ -1,6 +1,6 @@
 # NLI Ver19 support matrix
 
-Updated: 2026-10-27
+Updated: 2026-10-28
 
 This matrix separates locally measured results from release gates that require
 Linux containers or real Rocky/RHEL hosts.
@@ -11,7 +11,7 @@ Linux containers or real Rocky/RHEL hosts.
 | Client/controller OS | x86_64 RHEL/Rocky 8, 9, 10 | Full Go, vet, and race suites pass in the pinned Linux container; Rocky lifecycle remains a release-CI gate |
 | Controller access | private TLS, corporate certificate, Nginx/ACME, existing HTTPS proxy, Cloudflare Tunnel | Static and contract checks pass; deployment remains environment-specific |
 | Hosted WebApp | Vercel and Cloudflare Pages through same-origin proxy | Core and Vercel-mirror Vite builds pass; 24 deployment, proxy, documentation, and export contracts pass |
-| Browser | current Chromium-class browsers | Playwright Chromium suite passes 60/60 for Release 7, including every primary workspace and visible inner tab |
+| Browser | current Chromium-class browsers | R8 includes 61 Playwright Chromium scenarios covering every primary workspace, visible inner tab, and the guided quarantine lifecycle; final clean release execution is recorded in the R8 test report |
 | Parser evolution | NUPIRE discovery, declarative compilation, held-out evaluation, shadow, approval, canary, promotion, drift, rollback | Unit, API, persistence, UI, and fuzz checks pass |
 | Production rollout | existing signed, independently approved parser rollout | Preserved; NUPIRE promotion cannot bypass it |
 | Supabase | protected metadata and explicitly retained encrypted artifacts | Existing Ver18 contract retained; secrets remain controller-only |

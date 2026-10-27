@@ -7,7 +7,7 @@ const origin = 'http://127.0.0.1:4176';
 const tabs = ['operations', 'monitoring', 'streams', 'sync-fabric', 'nhle-monitor', 'napi-monitor', 'nal-monitor', 'assurance', 'quarantine-wizard', 'upes', 'parser-workspace', 'nupire', 'api-monitor', 'field-integrity', 'fleet', 'parser-sync', 'clients', 'controller', 'parsers', 'migration', 'input-paths', 'kv', 'static', 'projection', 'studio', 'regex', 'knownkeys', 'semantic', 'engine-network', 'engine-url', 'engine-email', 'engine-subject', 'outputs', 'metadata', 'unknowns', 'drift', 'performance', 'rollouts', 'artifacts', 'security', 'system', 'communications', 'notifications', 'ai'];
 const assets = Object.fromEntries(await Promise.all(['index.html', 'app.js', 'styles.css', 'nli-mark.svg', 'nexora-logo-v19.png', 'login-banner-v19.png', 'nexora-poster-v19.png'].map(async name => [name, await readFile(new URL(name, import.meta.url))])));
 
-async function mockController(page, { role = 'admin', healthIdentity = 'v19', upesSnapshot = null, assurancePassed = true, nupireCandidates = [], quarantineRaw = 'exact raw source line' } = {}) {
+async function mockController(page, { role = 'admin', healthIdentity = 'v19', upesSnapshot = null, assurancePassed = true, nupireCandidates = [], quarantineRaw = 'exact raw source line', qrwParsers = [], qrwRecords = null, qrwSyncAssets = null } = {}) {
   const observed = [];
   const cases = [];
   const uploads = [];
@@ -27,6 +27,15 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19', up
   const users = [];
   const auditEvents = [];
   const notificationPolicySaves = [];
+  const qrwParserActions = [];
+  const qrwReplays = [];
+  const qrwSyncVerifications = [];
+  const qrwRolloutRequests = [];
+  let currentBundleHash = qrwSyncAssets?.[0]?.desired?.sha256 || '';
+  let currentQRWParsers = qrwParsers.map(item => structuredClone(item));
+  let currentQRWRecords = qrwRecords ? structuredClone(qrwRecords) : null;
+  let currentQRWSyncAssets = qrwSyncAssets ? structuredClone(qrwSyncAssets) : null;
+  const currentQRWHistory = [];
   let authenticated = false;
   await page.route(`${origin}/**`, async route => {
     const request = route.request();
@@ -58,8 +67,9 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19', up
     if (path === '/api/v1/assurance/cases/fixture-42/download') return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'application/octet-stream' }, body: 'service=example user=operator' });
     if (path === '/api/v1/assurance/cases' && request.method() === 'POST') { const body = request.postDataJSON(); cases.push({ id: 'case-1', name: body.name, revision: 1, manual_retention: true, parser_id: 'test-parser', passed: true }); return fulfill(cases.at(-1)); }
     if (path === '/api/v1/assurance/cases') return fulfill({ cases: [{ id: 'fixture-42', name: 'Retained fixture', payload: { name: 'Retained fixture' } }, ...cases] });
-    if (path === '/api/v1/assurance/parsers' && request.method() === 'POST') return fulfill({ id: 'draft-1', state: 'draft' }, 201);
-    if (path === '/api/v1/assurance/parsers') return fulfill({ parsers: [] });
+    if (path === '/api/v1/assurance/parsers' && request.method() === 'POST') { const body=request.postDataJSON(),doc={id:'draft-1',revision:1,state:'draft',payload:body};currentQRWParsers.push(doc);return fulfill({id:doc.id,state:doc.state,revision:doc.revision},201); }
+    if (path.match(/^\/api\/v1\/assurance\/parsers\/[^/]+\/(validate|submit|approve|reject|cancel|publish|rollback|offboard)$/) && request.method() === 'POST') { const [,id,action]=path.match(/^\/api\/v1\/assurance\/parsers\/([^/]+)\/(validate|submit|approve|reject|cancel|publish|rollback|offboard)$/),doc=currentQRWParsers.find(item=>item.id===id);qrwParserActions.push({id,action,body:request.postDataJSON()});if(doc){doc.state=({validate:doc.state,submit:'in_review',approve:'approved',reject:'rejected',cancel:'draft',publish:'published',rollback:'approved',offboard:'approved'})[action];doc.payload={...doc.payload,...(action==='publish'?{activated:true}:action==='rollback'?{activated:false,rolled_back_at:'2026-10-28T00:00:00Z'}:action==='offboard'?{activated:false,offboarded_at:'2026-10-28T00:00:00Z'}:{})};if(action==='publish')currentBundleHash=doc.payload.artifact_checksum||currentBundleHash;}return fulfill({id,state:doc?.state||action,validation:{score:100},bundle_hash:currentBundleHash,rollout_proposal:['publish','rollback','offboard'].includes(action)?{id:`proposal-${action}-${id}`,state:'pending_approval'}:undefined}); }
+    if (path === '/api/v1/assurance/parsers') return fulfill({ parsers: currentQRWParsers });
     if (path === '/api/v1/assurance/napi/synthesize' && request.method() === 'POST') { const body=request.postDataJSON();return fulfill({id:body.id,revision:1,state:'draft',draft_created:true,selected_candidate:'anchored-regex',strategy:'regex',validation:{score:100,held_out_passed:body.held_out.length},regex_safety:{safe:true,engine:'go-re2'},provenance:{discovery_count:body.discovery.length,held_out_count:body.held_out.length,raw_samples_persisted:false},requires_human_approval:true,published:false},201); }
     if (path === '/api/v1/assurance/ai-proposals') return fulfill({ proposals: [], raw_samples_retained: false });
     if (path === '/api/v1/assurance/history') return fulfill({ events: [] });
@@ -80,16 +90,17 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19', up
     if (path === '/api/v1/telemetry/stream/snapshot') return fulfill({ bounded: true, files: [{ node_id: 'node-1', source: '/var/log/mail.log', phase: 'tailing', read_lines_per_second: 90, normalized_per_second: 80, quarantined_per_second: 5, bytes_per_second: 4096, queue_depth: 4, queue_capacity: 128, backpressure: false, read_duration_ns: 1000000, parse_duration_ns: 2000000, output_duration_ns: 3000000, total_duration_ns: 6000000, read_lines: 900, updated_at: '2026-10-14T00:00:00Z', thresholds: { read_lines_per_second: 80, bytes_per_second: 5000, quarantined_per_second: 10, queue_depth: 100 } }] });
     if (path === '/api/v1/telemetry/query') return fulfill({ telemetry: [] });
     if (path === '/api/v1/quarantine/summary') return fulfill({ waiting: 1, reprocessing: 0, resolved: 2, raw_available: 1 });
-    if (path === '/api/v1/quarantine/records') return fulfill({ records: [{ id: 'q-1', node_id: 'node-1', service: 'smtp', first_seen: '2026-10-10T00:00:00Z', attempt_count: 2, status: 'waiting', error_codes: ['no_match'], raw_available: true }] });
-    if (path === '/api/v1/quarantine/history') return fulfill({ events: [] });
-    if (path === '/api/v1/quarantine/reprocess' && request.method() === 'POST') return fulfill({ rollout_id: 'replay-1', status: 'pending' }, 202);
+    if (path === '/api/v1/quarantine/records') return fulfill({ records: currentQRWRecords || [{ id: 'q-1', node_id: 'node-1', service: 'smtp', first_seen: '2026-10-10T00:00:00Z', attempt_count: 2, status: 'waiting', error_codes: ['no_match'], raw_available: true }] });
+    if (path === '/api/v1/quarantine/history') return fulfill({ events: currentQRWHistory });
+    if (path === '/api/v1/quarantine/reprocess' && request.method() === 'POST') { const body=request.postDataJSON();qrwReplays.push(body);for(const record of currentQRWRecords||[])if(body.record_ids.includes(record.id))record.status='resolved';currentQRWHistory.push({record_id:'q-1',status:'resolved',outcome:'success'});return fulfill({ rollout_id: 'replay-1', status: 'pending' }, 202); }
     if (path.startsWith('/api/v1/metrics/timeseries')) { const params=new URL(request.url()).searchParams;historyQueries.push(params);const key=params.toString(),call=historyCounts[key]=(historyCounts[key]||0)+1,read=key.includes('range=24h')&&call>1?'42':'9007199254740993',parsed=read==='42'?'40':'9007199254740990'; return fulfill({ from: '2026-10-25T00:00:00Z', to: '2026-10-25T01:00:00Z', canonical_history: { bucket_width_seconds: 60, points: [{timestamp:'2026-10-25T00:59:00Z',read_delta:read,parsed_delta:parsed,quarantine_delta:'2',errors:1}] }, points: [{ timestamp: '2026-10-25T00:59:00Z', received: read, parsed, quarantine: 2, errors: 1, logs_received: read, logs_parsed: parsed, logs_quarantined: 2 }] }); }
     if (path === '/api/v1/verification/sample-corpus') return fulfill({ verdict: 'pass', known_key_inventory: { declared_family_keys: 278, covered_family_keys: 278, unmapped_family_keys: 0 }, totals: { records: 728, accounted_records: 728, parsed_records: 723, exact_parity_records: 723, failing_records: 0, expected_quarantined_records: 5, unexpected_quarantined_records: 0, parsed_comparable_raw_fields: 13101, parsed_generated_json_fields: 13101 }, families: [{ family: 'IMAP', records: 52, passing_records: 52, comparable_raw_fields: 1154, generated_json_fields: 1154, duplicate_occurrences: 0 }], records: [{ corpus: 'samples.log', source_line: 50, family: 'SMTP-OUT', expected_disposition: 'quarantined', disposition_reason: 'truncated record', record_sha256: 'a'.repeat(64) }] });
     if (path === '/api/v1/admin/ai-usage') return fulfill({ requests: 0, tokens: 0, pending_drafts: 0 });
     if (path === '/api/v1/fleet') return fulfill({ nodes: [{ id: 'node-1', hostname: 'mail-node-1', status: 'online', last_seen: '2026-10-17T05:00:00Z' }] });
-    if (path === '/api/v1/fleet/sync') return fulfill({ nodes: [{ node: { id: 'node-1', hostname: 'mail-node-1', status: 'online', last_seen: '2026-10-17T05:00:00Z' }, sync: { drifted: false } }] });
-    if (path === '/api/v1/parser-sync' && request.method() === 'GET') return fulfill({ count: 1, assets: [{ asset_class: 'regex', asset_id: 'nginx-access', name: 'Nginx access pattern', desired: { revision: 3, sha256: 'a'.repeat(64), state: 'published' }, controller: { revision: 3, sha256: 'a'.repeat(64), status: 'applied' }, auto_rollout: { enabled: true, status: 'enabled' }, rollout: { id: 'rollout-1', status: 'complete', total_nodes: 1, done_nodes: 1, failed_nodes: 0, errors: [] }, clients: [{ node_id: 'node-1', desired_revision: 3, desired_hash: 'a'.repeat(64), applied_revision: 3, applied_hash: 'a'.repeat(64), last_seen: '2026-10-09T10:00:00Z', status: 'online', drifted: false }] }] });
-    if (path === '/api/v1/parser-sync/verify' && request.method() === 'POST') return fulfill({ verified: true, message: 'Reported state refreshed' });
+    if (path === '/api/v1/fleet/sync') return fulfill({ nodes: currentQRWSyncAssets ? currentQRWSyncAssets.flatMap(asset=>asset.clients||[]).map(client=>({node:{id:client.node_id,hostname:client.node_id,status:client.status||'online',last_seen:'2026-10-17T05:00:00Z'},sync:{drifted:!!client.drifted}})) : [{ node: { id: 'node-1', hostname: 'mail-node-1', status: 'online', last_seen: '2026-10-17T05:00:00Z' }, sync: { drifted: false } }] });
+    if (path === '/api/v1/parser-sync' && request.method() === 'GET') return fulfill({ bundle: qrwSyncAssets ? { desired_hash: currentBundleHash, parser_ids: currentQRWParsers.filter(item=>item.state==='published').map(item=>item.id), revision: 2 } : undefined, count: currentQRWSyncAssets?.length || 1, assets: currentQRWSyncAssets || [{ asset_class: 'regex', asset_id: 'nginx-access', name: 'Nginx access pattern', desired: { revision: 3, sha256: 'a'.repeat(64), state: 'published' }, controller: { revision: 3, sha256: 'a'.repeat(64), status: 'applied' }, auto_rollout: { enabled: true, status: 'enabled' }, rollout: { id: 'rollout-1', status: 'complete', total_nodes: 1, done_nodes: 1, failed_nodes: 0, errors: [] }, clients: [{ node_id: 'node-1', desired_revision: 3, desired_hash: 'a'.repeat(64), applied_revision: 3, applied_hash: 'a'.repeat(64), last_seen: '2026-10-09T10:00:00Z', status: 'online', drifted: false }] }] });
+    if (path === '/api/v1/parser-sync/rollout' && request.method() === 'POST') { const body=request.postDataJSON(),proposal={id:`qrw-rollout-${qrwRolloutRequests.length+1}`,created_by:'test-operator',state:'pending_approval',payload:{type:'parser_sync',name:'Parser bundle rollout',target_mode:body.target_mode,target_nodes:body.target_mode==='all_eligible'?currentQRWSyncAssets?.[0]?.clients?.map(item=>item.node_id)||[]:[body.origin_node_id],bundle_hash:body.bundle_hash}};qrwRolloutRequests.push(body);rolloutProposals.push(proposal);return fulfill({proposal},201); }
+    if (path === '/api/v1/parser-sync/verify' && request.method() === 'POST') { const body=request.postDataJSON();qrwSyncVerifications.push(body);const asset=currentQRWSyncAssets?.find(item=>item.asset_id===body.asset_id);const origin=asset?.clients?.find(item=>item.node_id==='node-1');if(origin){origin.applied_hash=origin.desired_hash;origin.drifted=false;}return fulfill({ verified: true, message: 'Reported state refreshed' }); }
     if (path === '/api/v1/parser-sync/retry' && request.method() === 'POST') return fulfill({ proposal_id: 'proposal-1', state: 'pending_approval', message: 'Rollout proposal created; independent approval is required.' });
     if (path === '/api/v1/parser-packs') return fulfill({ parser_packs: [] });
     if (path === '/api/v1/parsers') return fulfill([{ id: 'smtp', version: 7, format: 'syslog', description: 'SMTP parser', fields: ['message'] }]);
@@ -121,7 +132,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v19', up
     if (path === '/api/v1/system') return fulfill({ version: '19.0.0', health: 'ok', storage: { mode: 'supabase', status: 'connected' }, security: { audit_chain: 'ok' } });
     return fulfill({ error: `Unmocked API: ${path}` }, 500);
   });
-  return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, assuranceRuns, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves, rolloutProposals, historyQueries, users, auditEvents, notificationPolicySaves };
+  return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, assuranceRuns, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves, rolloutProposals, historyQueries, users, auditEvents, notificationPolicySaves, qrwParserActions, qrwReplays, qrwSyncVerifications, qrwRolloutRequests };
 }
 
 async function login(page) {
@@ -430,6 +441,67 @@ test('Quarantine Resolution Wizard maps the required unstructured fixture withou
   expect(parser.provenance).toMatchObject({kind:'quarantine_resolution_wizard',generated_from_verified_evidence:true});
   await editor.getByRole('button',{name:'Save review-gated draft'}).click();
   await expect.poll(()=>mock.observed.includes('POST /api/v1/assurance/parsers')).toBe(true);
+});
+
+test('QRW stages 6–9 give the next action and gate replay on the exact origin bundle before verify and rollback', async ({ page }) => {
+  const checksum='d'.repeat(64),wrong='e'.repeat(64);
+  const mock=await mockController(page,{quarantineRaw:'alpha beta',
+    qrwParsers:[{id:'qr-candidate',revision:1,state:'in_review',payload:{name:'reviewed-smtp',source_quarantine_record_id:'q-1',artifact_checksum:checksum,validation:{score:100}}},{id:'qr-offboard',revision:2,state:'published',payload:{name:'retired-smtp',source_quarantine_record_id:'q-2',artifact_checksum:checksum,activated:true,validation:{score:100}}}],
+    qrwRecords:[{id:'q-1',node_id:'node-1',service:'smtp',first_seen:'2026-10-10T00:00:00Z',attempt_count:2,status:'waiting',error_codes:['no_match'],raw_available:true}],
+    qrwSyncAssets:[{asset_class:'parser',asset_id:'qr-candidate',name:'reviewed-smtp',desired:{revision:1,sha256:checksum,state:'published'},rollout:{id:'global-qr-rollout',status:'complete',target_mode:'all_eligible',total_nodes:2,done_nodes:2,failed_nodes:0},clients:[{node_id:'node-1',desired_revision:1,desired_hash:checksum,applied_revision:0,applied_hash:wrong,status:'online',drifted:true},{node_id:'node-2',desired_revision:1,desired_hash:checksum,applied_revision:1,applied_hash:checksum,status:'online',drifted:false}]}]
+  });
+  await login(page);
+  await page.getByTestId('nav-quarantine-wizard').click();
+  const lifecycle=page.locator('#page tr').filter({hasText:'reviewed-smtp'});
+  await expect(page.locator('.qrw-next-action')).toContainText('Select and inspect one retained failure');
+  await page.getByRole('button',{name:'Inspect',exact:true}).click();
+  await page.getByRole('button',{name:'Suggest from raw log'}).click();
+  await page.getByRole('button',{name:'Test all fields'}).click();
+  await page.getByRole('button',{name:'Run deterministic preview'}).click();
+  for(const step of [6,7,8,9]){
+    const button=page.locator(`[data-wizard-step="${step}"] button`);
+    await button.click();
+    await expect(page.locator(`[data-wizard-step="${step}"]`)).toHaveClass(/active/);
+  }
+  await page.getByTestId('nav-operations').click();
+  await page.getByTestId('nav-quarantine-wizard').click();
+  await expect(page.locator('.qrw-next-action')).toContainText('Review the candidate independently');
+  await expect(lifecycle).toContainText('1/2 clients acknowledged');
+  await lifecycle.getByRole('button',{name:'Approve',exact:true}).click();
+  await page.getByTestId('nav-quarantine-wizard').click();
+  await expect(page.locator('.qrw-next-action')).toContainText('Publish the approved candidate');
+  await lifecycle.getByRole('button',{name:'Publish',exact:true}).click();
+  await page.getByTestId('nav-quarantine-wizard').click();
+  await expect(page.locator('.qrw-next-action')).toContainText('Wait for the origin client to acknowledge the exact bundle');
+  await expect(page.getByRole('button',{name:'Request gated replay'})).toBeDisabled();
+  await expect(page.locator('#gprs-replay-form [name=record_ids] option[value="q-1"]')).toHaveAttribute('disabled','');
+  await page.getByRole('button',{name:'Propose to all eligible clients'}).click();
+  await expect.poll(()=>mock.qrwRolloutRequests).toHaveLength(1);
+  expect(mock.qrwRolloutRequests[0]).toEqual({target_mode:'all_eligible',origin_node_id:'node-1',node_ids:[],bundle_hash:checksum});
+  const rolloutRow=page.locator('#page tr').filter({hasText:'qrw-rollout-1'});
+  await expect(rolloutRow).toContainText('all_eligible · 2 client(s)');
+  await expect(rolloutRow.getByRole('button',{name:'Approve'})).toBeDisabled();
+  await page.locator('.qrw-next-action').getByRole('button',{name:'Verify fleet state'}).click();
+  await expect.poll(()=>mock.qrwSyncVerifications).toHaveLength(1);
+  expect(mock.qrwSyncVerifications[0]).toEqual({asset_class:'parser',asset_id:'qr-candidate'});
+  await page.getByTestId('nav-quarantine-wizard').click();
+  await expect(lifecycle).toContainText('2/2 clients acknowledged');
+  await expect(page.locator('#gprs-replay-form [name=record_ids] option[value="q-1"]')).not.toHaveAttribute('disabled');
+  const replay=page.locator('#gprs-replay-form');
+  await replay.locator('[name=record_ids]').selectOption('q-1');
+  await expect(replay.locator('[name=node_id]')).toHaveValue('node-1');
+  await replay.getByRole('button',{name:'Request gated replay'}).click();
+  await expect.poll(()=>mock.qrwReplays).toHaveLength(1);
+  expect(mock.qrwReplays[0]).toEqual({record_ids:['q-1'],node_id:'node-1'});
+  await page.getByTestId('nav-quarantine-wizard').click();
+  await expect(page.locator('.qrw-next-action')).toContainText('Verify the replay result');
+  await lifecycle.getByRole('button',{name:'Rollback',exact:true}).click();
+  await expect.poll(()=>mock.qrwParserActions.some(item=>item.id==='qr-candidate'&&item.action==='rollback')).toBe(true);
+  await page.getByTestId('nav-quarantine-wizard').click();
+  const offboardRow=page.locator('#page tr').filter({hasText:'retired-smtp'});
+  await offboardRow.getByRole('button',{name:'Offboard',exact:true}).click();
+  await expect.poll(()=>mock.qrwParserActions.some(item=>item.id==='qr-offboard'&&item.action==='offboard')).toBe(true);
+  expect(mock.qrwParserActions.map(item=>item.action)).toEqual(['approve','publish','rollback','offboard']);
 });
 
 test('premium login keeps the square V19 emblem and banner fully contained on desktop and mobile', async ({ page }) => {

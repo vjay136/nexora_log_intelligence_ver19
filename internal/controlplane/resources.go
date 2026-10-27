@@ -1254,12 +1254,48 @@ func (s *Server) approveRollout(w http.ResponseWriter, r *http.Request, id strin
 	var proposal map[string]any
 	_ = json.Unmarshal(doc.Payload, &proposal)
 	targets := interfaceStrings(proposal["target_nodes"])
+	var parserBundle *parserAssetBundle
+	if fmt.Sprint(proposal["type"]) == rolloutTypeParserSync {
+		var syncPayload struct {
+			Bundle     parserAssetBundle `json:"asset_bundle"`
+			BundleHash string            `json:"bundle_hash"`
+		}
+		payloadBytes, _ := json.Marshal(proposal["payload"])
+		if json.Unmarshal(payloadBytes, &syncPayload) != nil || syncPayload.BundleHash == "" || syncPayload.Bundle.BundleHash != syncPayload.BundleHash {
+			jsonError(w, "parser sync proposal has no exact bundle snapshot", http.StatusConflict)
+			return
+		}
+		hash, _, hashErr := bundleDigest(syncPayload.Bundle)
+		if hashErr != nil || hash != syncPayload.BundleHash {
+			jsonError(w, "parser sync proposal bundle hash is invalid", http.StatusConflict)
+			return
+		}
+		current, currentErr := s.buildActiveParserBundle(r.Context())
+		if currentErr != nil || current.BundleHash != syncPayload.BundleHash {
+			jsonError(w, "parser sync proposal is stale; create a rollout for the current published bundle", http.StatusConflict)
+			return
+		}
+		parserBundle = &syncPayload.Bundle
+	}
 	if len(targets) == 0 {
 		for _, node := range s.fleet.All() {
 			if node.Status != fleet.StatusOffline {
 				targets = append(targets, node.ID)
 			}
 		}
+	}
+	if len(targets) > 1000 {
+		jsonError(w, "rollout exceeds the 1000-client target limit", http.StatusConflict)
+		return
+	}
+	seenTargets := map[string]bool{}
+	for _, target := range targets {
+		node, ok := s.fleet.Get(target)
+		if !ok || node == nil || node.Status == fleet.StatusOffline || seenTargets[target] {
+			jsonError(w, "rollout contains a missing, offline, or duplicate target", http.StatusConflict)
+			return
+		}
+		seenTargets[target] = true
 	}
 	if len(targets) == 0 {
 		jsonError(w, "rollout has no eligible target nodes", http.StatusConflict)
@@ -1285,6 +1321,9 @@ func (s *Server) approveRollout(w http.ResponseWriter, r *http.Request, id strin
 		return
 	}
 	s.markInputPathRolloutDesired(principal.Username, proposal, targets)
+	if parserBundle != nil {
+		s.markParserSyncRolloutDesired(r.Context(), principal.Username, doc.ID, *parserBundle, targets)
+	}
 	s.auditAction(principal, "rollout.approve", "rollout-proposals/"+id, "success", map[string]string{"live_rollout_id": live.ID})
 	jsonOK(w, documentView(saved))
 }

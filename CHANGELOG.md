@@ -1,5 +1,14 @@
 # Changelog
 
+## [19.0.0-8] - 2026-10-28
+
+- Turn Quarantine Resolution Wizard stages 6–9 into one guided Test, Review, Rollout, Replay, and Verify control flow with a state-derived next action.
+- Duplicate the canonical Assurance, parser lifecycle, rollout approval, Fleet Sync, replay, verification, rollback, and offboarding controls inside the wizard.
+- Add approval-gated parser-bundle rollout scopes for the origin client, selected clients, or every eligible online client.
+- Require an exact desired hash, active hash, and applied acknowledgement before replay; stale bundle proposals cannot be approved.
+- Keep rollback and offboarding reviewable and distribute the resulting removal bundle through the same independent approval path.
+- Add browser and controller lifecycle regressions plus an operator test guide for unstructured-log recovery.
+
 ## [19.0.0-7] - 2026-10-26
 
 - Publish authoritative per-source validation attempt, pass, and failure counters and rates from the client through the canonical synchronization snapshot and OpenMetrics endpoint.

@@ -85,7 +85,23 @@ func TestPublishedAssurancePackIsOnlyRuntimeBundleHandoff(t *testing.T) {
 	if response.StatusCode != http.StatusConflict {
 		t.Fatalf("replay must wait for target applied acknowledgement, got %d: %s", response.StatusCode, body)
 	}
-	stateBytes, _ := json.Marshal(map[string]any{"node_id": "recovery-node", "desired_asset_bundle_hash": bundle.BundleHash, "active_asset_bundle_hash": bundle.BundleHash})
+	stateBytes, _ := json.Marshal(map[string]any{"node_id": "recovery-node", "desired_asset_bundle_hash": "stale-desired-hash", "active_asset_bundle_hash": bundle.BundleHash, "asset_sync_status": "applied"})
+	if _, err := f.server.metadata.Put(context.Background(), metastore.Document{Collection: "fleet-sync", ID: "recovery-node", State: "reported", Payload: stateBytes, CreatedBy: "node:recovery-node"}); err != nil {
+		t.Fatal(err)
+	}
+	response, body = f.request(http.MethodPost, "/api/v1/quarantine/reprocess", replayBody)
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("matching active hash with stale desired hash must remain gated, got %d: %s", response.StatusCode, body)
+	}
+	stateBytes, _ = json.Marshal(map[string]any{"node_id": "recovery-node", "desired_asset_bundle_hash": bundle.BundleHash, "active_asset_bundle_hash": bundle.BundleHash, "asset_sync_status": "drifted"})
+	if _, err := f.server.metadata.Put(context.Background(), metastore.Document{Collection: "fleet-sync", ID: "recovery-node", State: "reported", Payload: stateBytes, CreatedBy: "node:recovery-node"}); err != nil {
+		t.Fatal(err)
+	}
+	response, body = f.request(http.MethodPost, "/api/v1/quarantine/reprocess", replayBody)
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("matching hash without applied acknowledgement must remain gated, got %d: %s", response.StatusCode, body)
+	}
+	stateBytes, _ = json.Marshal(map[string]any{"node_id": "recovery-node", "desired_asset_bundle_hash": bundle.BundleHash, "active_asset_bundle_hash": bundle.BundleHash, "asset_sync_status": "applied"})
 	if _, err := f.server.metadata.Put(context.Background(), metastore.Document{Collection: "fleet-sync", ID: "recovery-node", State: "reported", Payload: stateBytes, CreatedBy: "node:recovery-node"}); err != nil {
 		t.Fatal(err)
 	}

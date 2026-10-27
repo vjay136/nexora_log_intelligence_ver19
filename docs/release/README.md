@@ -1,34 +1,43 @@
 # NLI v19 release infrastructure
 
-## Release 19.0.0-7
+## Release 19.0.0-8
 
-Release 7 adds authoritative validation attempt, pass, and failure telemetry
-to the client, canonical controller snapshot, Monitoring pipeline, and
-OpenMetrics output. It fixes non-empty NUPIRE/EGPE registry rendering and
-consolidates quarantine recovery into one Guided Parser Repair Studio flow:
-evidence, manual field/delimiter/template/regex guidance, deterministic
-preview, review-gated candidate, independent approval, publication, client
-acknowledgement, targeted replay, and rollback.
+Release 8 completes quarantine recovery after candidate generation. The
+Quarantine Resolution Wizard now duplicates the canonical Test, Review,
+Publish, scoped Fleet Sync, rollout approval, exact acknowledgement, replay,
+verification, rollback, and offboarding controls in one workspace. Its next
+action is derived from persisted candidate, proposal, client, and replay state.
 
 The dedicated Quarantine Resolution Wizard presents the same governed APIs as
 a persistent nine-stage operator flow with per-field schema, mapping,
 validation, evidence, confidence, and status controls. It blocks unresolved
 fields and requires explicit confirmation of ambiguous delimiter boundaries.
 
+Parser publication and removal create an exact bundle snapshot and an
+independently approved rollout proposal. Origin, selected-client, and
+all-eligible scopes are explicit. A stale proposal is rejected, and replay
+remains blocked until the target client's desired hash, active hash, and
+applied status all match the current bundle.
+
 The release gate exercises representative structured and unstructured records,
 exact normalized/quarantine accounting, all primary workspaces and visible
 inner tabs, the real controller APIs, reproducible RPM creation, and Rocky 9
-and Rocky 10.2 upgrade lifecycles. See `V19_R7_TEST_RESULTS.md` in the release
+and Rocky 10.2 upgrade lifecycles. See `V19_R8_TEST_RESULTS.md` in the release
 archive for the verified commands, sample classes, and results.
 See `V19_QUARANTINE_RESOLUTION_WIZARD.md` for the operator workflow, exact
 unstructured fixture, data boundaries, deployment checks, and rollback path.
 
-### Operator acceptance for release 7
+### Operator acceptance for release 8
 
-1. Upgrade both controller and clients to `19.0.0-7`; confirm the Monitoring → Pipeline VALIDATE row shows measured attempt/pass/failure rates.
+1. Upgrade both controller and clients to `19.0.0-8`; confirm the Monitoring → Pipeline VALIDATE row shows measured attempt/pass/failure rates.
 2. Put representative JSON, key/value, syslog, delimiter, positional, multiline, and deliberately unstructured records into a clean input. Confirm `read = normalized + quarantined` and that restart does not duplicate output.
-3. Open Assurance Lab → Guided Parser Repair Studio for a retained quarantine record. Complete evidence, define, validate, review/publish, client acknowledgement, replay, and rollback checks without leaving the guided workflow.
-4. Confirm NUPIRE/EGPE renders both an empty registry and a persisted candidate without a browser exception.
+3. Open Quarantine Resolution Wizard for a retained quarantine record. Complete evidence, mapping, preview, candidate generation, independent parser review, publication, origin and all-eligible rollout proposals, independent rollout approval, exact client acknowledgement, replay, verification, rollback, and offboarding checks without leaving the guided workflow.
+4. Confirm the proposal creator cannot approve their own rollout, a stale bundle proposal is rejected, and replay remains disabled until the origin reports the exact applied bundle.
+
+## Previous release: 19.0.0-7
+
+Release 7 added authoritative validation telemetry, non-empty NUPIRE/EGPE
+rendering, and the nine-stage field-mapping and candidate-generation wizard.
 
 ## Previous release: 19.0.0-6
 

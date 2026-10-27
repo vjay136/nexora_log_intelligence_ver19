@@ -9,6 +9,8 @@ from pathlib import Path
 
 DOC = "V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md"
 WIZARD = "V19_QUARANTINE_RESOLUTION_WIZARD.md"
+R8_RESULTS = "V19_R8_TEST_RESULTS.md"
+R8_OPERATOR = "V19_R8_QRW_OPERATOR_TEST_GUIDE.md"
 DIAGRAM = "NLI_V19_UPES_GPRS_ARCHITECTURE.svg"
 
 
@@ -20,6 +22,8 @@ def validate(root: Path, output: Path, client: Path, controller: Path) -> None:
     sources = {
         DOC: root / "docs" / DOC,
         WIZARD: root / "docs" / WIZARD,
+        R8_RESULTS: root / "docs" / R8_RESULTS,
+        R8_OPERATOR: root / "docs" / R8_OPERATOR,
         DIAGRAM: root / "docs" / "architecture" / DIAGRAM,
     }
     for name, source in sources.items():
@@ -32,7 +36,7 @@ def validate(root: Path, output: Path, client: Path, controller: Path) -> None:
 
     guide = sources[DOC].read_text(encoding="utf-8")
     for claim in (
-        "19.0.0-7",
+        "19.0.0-8",
         "does not accept or store a raw record or source path",
         "does not claim a",
         "submitted_checksum",
@@ -55,6 +59,16 @@ def validate(root: Path, output: Path, client: Path, controller: Path) -> None:
     ):
         if claim not in wizard:
             fail(f"wizard guide does not document the expected boundary: {claim!r}")
+
+    results = sources[R8_RESULTS].read_text(encoding="utf-8")
+    for claim in ("19.0.0-8", "61/61", "Full Go suite", "approval-gated"):
+        if claim not in results:
+            fail(f"R8 test report does not record expected evidence: {claim!r}")
+
+    operator = sources[R8_OPERATOR].read_text(encoding="utf-8")
+    for claim in ("Propose to all eligible clients", "Offboard", "exact desired hash", "different authorized operator"):
+        if claim not in operator:
+            fail(f"R8 operator guide does not document expected control: {claim!r}")
 
     for relative in (
         "packaging/build-rpms.sh",
@@ -81,12 +95,12 @@ def validate(root: Path, output: Path, client: Path, controller: Path) -> None:
         "packaging/rpm/nli-client.spec",
         "packaging/rpm/nli-controller-agent.spec",
     ):
-        if "19.0.0-7" not in (root / relative).read_text(encoding="utf-8"):
+        if "19.0.0-8" not in (root / relative).read_text(encoding="utf-8"):
             fail(f"{relative} does not identify the current release")
 
     release_env = (root / "packaging" / "release.env").read_text(encoding="utf-8")
-    if "NLI_VERSION=19.0.0" not in release_env or "NLI_RELEASE=7" not in release_env:
-        fail("packaging release identity is not 19.0.0-7")
+    if "NLI_VERSION=19.0.0" not in release_env or "NLI_RELEASE=8" not in release_env:
+        fail("packaging release identity is not 19.0.0-8")
 
 
 def main() -> None:

@@ -1,4 +1,4 @@
-# NLI 19.0.0-7 Quarantine Resolution Wizard
+# NLI 19.0.0-8 Quarantine Resolution Wizard
 
 The Quarantine Resolution Wizard is the single operator workspace for turning a
 retained parsing failure into a reviewed parser revision. It reuses the existing
@@ -22,21 +22,28 @@ The persistent step bar records the current point in the nine-stage workflow:
    letters, digits, and underscores and start with a letter or underscore.
 6. **Test** all retained fixtures through the same deterministic parser runtime.
    Each field displays source evidence, preview value, confidence, and status.
-7. **Review** the candidate, desired JSON, diff, fixtures, and provenance before
-   submitting it for independent approval.
-8. **Replay** only after publish and the originating client's exact applied
-   bundle acknowledgement.
-9. **Verify** normalized output, accounting parity, destination delivery, and
-   live telemetry. Rollback stays available through the governed parser
-   lifecycle.
+7. **Review** the candidate, desired JSON, diff, fixtures, and provenance,
+   submit it, and record independent parser approval in the same workspace.
+8. **Roll out and replay** by proposing the exact published bundle for the
+   origin client or all eligible clients, obtaining independent rollout
+   approval, waiting for exact applied acknowledgement, and then replaying only
+   eligible records from one origin client.
+9. **Verify** controller-reported record state and replay history, normalized
+   output, accounting parity, destination delivery, and live telemetry.
+   Rollback and intentional offboarding stay available through the same
+   approval-gated bundle lifecycle.
+
+Replay is enabled only after the originating client's exact applied bundle acknowledgement
+matches the current desired bundle hash and applied status.
 
 The wizard also exposes evidence download, ignore, exclude/include, purge,
-candidate edit, submit, approval, publish, replay, and rollback actions when the
-current role has the corresponding permission.
+candidate edit, submit, approval, publish, origin or all-eligible rollout
+proposal, rollout approval/cancellation, replay, rollback, and offboarding
+actions when the current role has the corresponding permission.
 
 ## Required unstructured fixture
 
-Release 7 includes the following exact reviewer fixture:
+Release 8 includes the following exact reviewer fixture:
 
 ```text
 20250812 130035122+0100 aaa-gmailrgo009 mail 3609 0 140293768701696 Note;systemlogs_for_data
@@ -87,7 +94,7 @@ approval, rollout, and acknowledgement gates.
 
 ## Installation, upgrade, and rollback
 
-Install or upgrade the controller and client RPMs from the same Release 7
+Install or upgrade the controller and client RPMs from the same Release 8
 bundle. After both services are healthy, confirm the client reports the exact
 published parser bundle checksum before replaying retained evidence. The
 upgrade does not auto-promote drafts and does not replay old evidence.

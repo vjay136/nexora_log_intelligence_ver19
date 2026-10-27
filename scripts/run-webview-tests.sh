@@ -10,7 +10,7 @@ mkdir -p "$SCRATCH"/{tmp,gocache,gomodcache,state,web}
 for asset in index.html styles.css app.js nli-mark.svg README.txt; do install -m 0644 "$ROOT/web/$asset" "$SCRATCH/web/$asset"; done
 ADMIN_PASSWORD="Browser-$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')!"
 cat >"$SCRATCH/controller.json" <<'JSON'
-{"listen_address":"0.0.0.0:12382","state_dir":"/scratch/state","web_dir":"/scratch/web","allow_insecure_remote":true,"storage_provider":"local","storage_dir":"/scratch/state/metadata","event_path":"/scratch/state/event-metadata.jsonl","event_retention":1000,"enable_legacy_event_ingest":false,"assurance_retention_enabled":true,"assurance_retention_max":50,"assurance_retention_hours":24,"artifact_public_keys":[]}
+{"listen_address":"0.0.0.0:12382","state_dir":"/scratch/state","web_dir":"/scratch/web","allow_insecure_remote":true,"storage_provider":"local","storage_dir":"/scratch/state/metadata","event_path":"/scratch/state/event-metadata.jsonl","event_retention":1000,"enable_legacy_event_ingest":false,"assurance_retention_enabled":true,"assurance_retention_max":50,"assurance_retention_hours":24,"artifact_public_keys":[],"rate_limit":5000}
 JSON
 KEY="$(printf '0123456789abcdefghijklmnopqrstuv' | base64 | tr -d '\n')"
 cleanup(){ docker rm -f "$NAME" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true; }

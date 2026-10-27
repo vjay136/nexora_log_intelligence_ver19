@@ -11,7 +11,7 @@ $Config = @{
   listen_address='0.0.0.0:12382'; state_dir='/scratch/state'; web_dir='/scratch/web';
   storage_provider='local'; storage_dir='/scratch/state/metadata'; event_path='/scratch/state/event-metadata.jsonl';
   event_retention=1000; assurance_retention_enabled=$true; assurance_retention_max=50; assurance_retention_hours=24;
-  artifact_public_keys=@(); enable_legacy_event_ingest=$false; allow_insecure_remote=$true
+  artifact_public_keys=@(); enable_legacy_event_ingest=$false; allow_insecure_remote=$true; rate_limit=5000
 } | ConvertTo-Json
 [IO.File]::WriteAllText((Join-Path $Scratch 'controller.json'), $Config, [Text.UTF8Encoding]::new($false))
 $Key = [Convert]::ToBase64String((1..32 | ForEach-Object { [byte]$_ }))

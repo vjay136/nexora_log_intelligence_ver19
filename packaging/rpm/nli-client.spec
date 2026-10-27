@@ -52,7 +52,7 @@ install -m 0644 configs/outputs.example.json %{buildroot}%{_docdir}/%{name}/outp
 install -m 0644 systemd/nli-agent.service systemd/nli-client-control.service systemd/nli-client-bootstrap.service %{buildroot}/usr/lib/systemd/system/
 install -m 0644 README.md %{buildroot}%{_docdir}/%{name}/README.md
 install -m 0644 PARSER_CATALOG.md %{buildroot}%{_docdir}/%{name}/PARSER_CATALOG.md
-install -m 0644 V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md V19_R7_TEST_RESULTS.md V19_QUARANTINE_RESOLUTION_WIZARD.md NLI_V19_UPES_GPRS_ARCHITECTURE.svg %{buildroot}%{_docdir}/%{name}/
+install -m 0644 V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md V19_R7_TEST_RESULTS.md V19_R8_TEST_RESULTS.md V19_R8_QRW_OPERATOR_TEST_GUIDE.md V19_QUARANTINE_RESOLUTION_WIZARD.md NLI_V19_UPES_GPRS_ARCHITECTURE.svg %{buildroot}%{_docdir}/%{name}/
 install -m 0644 metrics/README.md metrics/metric-catalog.json metrics/prometheus-scrape.yml metrics/grafana-dashboard.json %{buildroot}%{_datadir}/nli/metrics/
 
 %pre
@@ -117,10 +117,15 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/PARSER_CATALOG.md
 %doc %{_docdir}/%{name}/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md
 %doc %{_docdir}/%{name}/V19_R7_TEST_RESULTS.md
+%doc %{_docdir}/%{name}/V19_R8_TEST_RESULTS.md
+%doc %{_docdir}/%{name}/V19_R8_QRW_OPERATOR_TEST_GUIDE.md
 %doc %{_docdir}/%{name}/V19_QUARANTINE_RESOLUTION_WIZARD.md
 %doc %{_docdir}/%{name}/NLI_V19_UPES_GPRS_ARCHITECTURE.svg
 
 %changelog
+* Wed Oct 28 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-8
+- Add the guided quarantine parser lifecycle, approval-gated fleet delivery, exact acknowledgement verification, replay, and safe offboarding controls.
+
 * Mon Oct 26 2026 Nexora Engineering <engineering@nexora.local> - 19.0.0-7
 - Add authoritative validation counters and guided quarantine recovery workflow
 

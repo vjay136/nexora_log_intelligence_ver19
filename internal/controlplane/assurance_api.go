@@ -762,7 +762,7 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 	permission := middleware.PermissionManageParsers
 	if action == "approve" || action == "reject" {
 		permission = middleware.PermissionReviewParsers
-	} else if action == "publish" || action == "rollback" {
+	} else if action == "publish" || action == "rollback" || action == "offboard" {
 		permission = middleware.PermissionTriggerRollout
 	}
 	p := s.authorize(w, r, permission)
@@ -888,15 +888,20 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 		body["review_state"] = "published"
 		body["activated"] = true
 		body["published_by"] = p.Username
-	case "rollback":
+	case "rollback", "offboard":
 		if doc.State != "published" || body["activated"] != true {
-			jsonError(w, "only an active published parser can be rolled back", 409)
+			jsonError(w, "only an active published parser can be rolled back or offboarded", 409)
 			return
 		}
 		body["review_state"] = "approved"
 		body["activated"] = false
-		body["rolled_back_by"] = p.Username
-		body["rolled_back_at"] = time.Now().UTC()
+		if action == "rollback" {
+			body["rolled_back_by"] = p.Username
+			body["rolled_back_at"] = time.Now().UTC()
+		} else {
+			body["offboarded_by"] = p.Username
+			body["offboarded_at"] = time.Now().UTC()
+		}
 	default:
 		jsonError(w, "unknown parser action", 404)
 		return
@@ -910,25 +915,23 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 	}
 	s.auditAction(p, "assurance.parser_"+action, "parser-packs/"+id, "success", nil)
 	response := map[string]any{"id": id, "revision": saved.Revision, "state": state, "review_state": state, "published": state == "published"}
-	if action == "publish" || action == "rollback" {
+	if action == "publish" || action == "rollback" || action == "offboard" {
 		bundle, bundleErr := s.buildActiveParserBundle(r.Context())
 		if bundleErr == nil {
 			_, bundleErr = s.materializeParserBundle(bundle)
 		}
-		var rollout *rolloutRecord
+		var proposal metastore.Document
 		if bundleErr == nil {
-			rollout, bundleErr = s.startParserBundleRollout(r.Context(), p.Username, "Assurance parser "+action+" "+id, bundle, nil)
+			proposal, bundleErr = s.proposeParserBundleRollout(r.Context(), p.Username, "Assurance parser "+action+" "+id, "Parser bundle changes require independent rollout approval before client synchronization.", "all_eligible", bundle, nil)
 		}
 		if bundleErr != nil {
 			s.auditAction(p, "assurance.parser_"+action+"_sync_failed", "parser-packs/"+id, "failure", map[string]string{"error": bundleErr.Error()})
-			jsonError(w, "parser "+action+" state was saved but the signed fleet bundle could not be prepared: "+bundleErr.Error(), 503)
+			jsonError(w, "parser "+action+" state was saved but the fleet rollout proposal could not be prepared: "+bundleErr.Error(), 503)
 			return
 		}
 		response["bundle_hash"] = bundle.BundleHash
-		if rollout != nil {
-			response["rollout_id"] = rollout.ID
-			response["rollout_state"] = rollout.Status
-		}
+		response["rollout_proposal"] = documentView(proposal)
+		response["approval_gate"] = "pending_approval"
 	}
 	jsonOK(w, response)
 }

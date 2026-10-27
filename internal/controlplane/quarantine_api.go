@@ -891,7 +891,7 @@ func (s *Server) handleQuarantineReprocess(w http.ResponseWriter, r *http.Reques
 	if syncErr == nil {
 		_ = json.Unmarshal(syncDoc.Payload, &syncState)
 	}
-	if bundle.BundleHash == "" || fmt.Sprint(syncState["active_asset_bundle_hash"]) != bundle.BundleHash {
+	if bundle.BundleHash == "" || fmt.Sprint(syncState["desired_asset_bundle_hash"]) != bundle.BundleHash || fmt.Sprint(syncState["active_asset_bundle_hash"]) != bundle.BundleHash || fmt.Sprint(syncState["asset_sync_status"]) != "applied" {
 		jsonError(w, "target client has not acknowledged the current published parser bundle; replay remains gated", http.StatusConflict)
 		return
 	}

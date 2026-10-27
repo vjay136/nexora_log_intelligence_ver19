@@ -26,15 +26,15 @@ unavailable measurements remain explicit. See the [NUPIRE architecture](docs/V19
 [baseline gap audit](docs/V19_BASELINE_CAPABILITY_GAP.md), and
 [research ledger](docs/V19_RESEARCH_AND_LICENSE_LEDGER.md).
 
-Release `19.0.0-7` adds authoritative validation-stage telemetry, repairs
-non-empty NUPIRE/EGPE rendering, and provides a dedicated nine-stage
-Quarantine Resolution Wizard over the checksum-bound Guided Parser Repair
-Studio lifecycle. Operators can inspect retained evidence, define and validate
-field mappings, generate and test a bounded declarative candidate, request
-independent approval, verify signed rollout acknowledgement, replay, and
-rollback without switching between unrelated workspaces. The workflow keeps
-withdrawal, independent approval, publication, and rollback distinct from
-client activation, which continues through the signed parser-bundle rollout.
+Release `19.0.0-8` completes the Quarantine Resolution Wizard after candidate
+generation. Test, review, publish, origin or fleet-wide rollout proposal,
+independent rollout approval, exact client acknowledgement, replay,
+verification, rollback, and offboarding controls now remain in one guided
+workspace. A state-derived next action highlights the current prerequisite.
+Parser delivery snapshots the exact canonical bundle, rejects stale proposals,
+and never enables replay until the target reports the same desired and active
+hash with applied status. All eligible-client publication and removal remain
+independently approved and auditable.
 See the [UPES/GPRS architecture and acceptance guide](docs/V19_UPES_GPRS_ARCHITECTURE_AND_ACCEPTANCE.md)
 the [Quarantine Resolution Wizard guide](docs/V19_QUARANTINE_RESOLUTION_WIZARD.md),
 and the [architecture diagram](docs/architecture/NLI_V19_UPES_GPRS_ARCHITECTURE.svg).
@@ -43,7 +43,7 @@ and the [architecture diagram](docs/architecture/NLI_V19_UPES_GPRS_ARCHITECTURE.
 
 - Reviewed first-tier ParserPacks for IMAP, POP, MTA, SMTP-IN, SMTP-OUT, WebTop/Webmail, PSS/PABD, and MSS/CAPD, derived from the supplied working Alloy/Vector parser sources.
 - A versioned catalog for known keys, delimiter rules, static layouts, regex, templates, projections, field mappings, semantic extraction, and bounded generic fallback.
-- A dedicated Parser Fleet Sync control plane. Every web-created parser asset is stored immediately as revisioned Supabase metadata in draft state; reviewed and published revisions are materialized into a hash-addressed bundle, rolled out automatically, and verified against the controller and every connected client's reported applied hash.
+- A dedicated Parser Fleet Sync control plane. Every web-created parser asset is stored immediately as revisioned Supabase metadata in draft state; reviewed and published revisions are materialized into a hash-addressed bundle, proposed for independently approved delivery, and verified against the controller and every connected client's exact reported applied hash.
 - Dedicated Network Identity, URL, Email Address, and Encoded Subject engines for IPv4, canonical IPv6, domains, HTTP/HTTPS URLs, addresses, and bounded RFC 2047 Subject decoding.
 - Source-field parity modes that distinguish source values, derived values, and envelope metadata, preserving exact evidence instead of inventing fields.
 - Assurance Lab uploads for bounded text, JSON, CSV, gzip, ZIP, and TAR samples; live family/parser dropdowns; automatic all-parser detection or exact runtime-parser execution; mixed corpus defaults/overrides; live parser and fleet-sync counts; archive traversal and expansion checks; parser drafts; independent approval; controlled publication; authenticated downloads; and audit history.

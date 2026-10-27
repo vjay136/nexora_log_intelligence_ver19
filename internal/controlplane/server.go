@@ -739,10 +739,10 @@ func (s *Server) handleNodeRegister(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// A newly enrolled client receives the current active parser asset bundle
-	// without an operator having to create a second rollout manually.
+	// Initial enrollment sync uses the same independent rollout approval gate
+	// as every other parser bundle rollout.
 	if bundle, err := s.buildActiveParserBundle(r.Context()); err == nil {
-		_, _ = s.startParserBundleRollout(r.Context(), "nli-v19-auto-enrollment", "Initial parser asset synchronization", bundle, []string{request.ID})
+		_, _ = s.proposeParserBundleRollout(r.Context(), "nli-v19-auto-enrollment", "Initial parser asset synchronization", "Initial parser synchronization for a newly enrolled client requires independent rollout approval.", "selected", bundle, []string{request.ID})
 	}
 	jsonCreated(w, protocol.RegisterResponse{Status: "registered", NodeID: request.ID, NodeToken: token})
 }

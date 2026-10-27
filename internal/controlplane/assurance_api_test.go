@@ -85,8 +85,8 @@ func TestAssuranceScoreAndParserCandidateLifecycle(t *testing.T) {
 		t.Fatalf("publish approved runtime parser %d: %s", response.StatusCode, data)
 	}
 	published := decodeMap(t, data)
-	if published["bundle_hash"] == "" {
-		t.Fatalf("publish did not materialize signed runtime bundle: %s", data)
+	if published["bundle_hash"] == "" || published["approval_gate"] != "pending_approval" || published["rollout_proposal"] == nil || len(f.server.rollouts.List()) != 0 {
+		t.Fatalf("publish did not create an approval-gated fleet proposal: %s", data)
 	}
 	liveBundle, err := f.server.buildActiveParserBundle(context.Background())
 	if err != nil {
@@ -108,6 +108,10 @@ func TestAssuranceScoreAndParserCandidateLifecycle(t *testing.T) {
 	if response.StatusCode != http.StatusOK || decodeMap(t, data)["state"] != "approved" {
 		t.Fatalf("rollback active candidate %d: %s", response.StatusCode, data)
 	}
+	rollback := decodeMap(t, data)
+	if rollback["approval_gate"] != "pending_approval" || rollback["rollout_proposal"] == nil {
+		t.Fatalf("rollback did not create an approval-gated removal proposal: %s", data)
+	}
 	rolledBackBundle, err := f.server.buildActiveParserBundle(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -116,6 +120,24 @@ func TestAssuranceScoreAndParserCandidateLifecycle(t *testing.T) {
 		if asset.AssetClass == "parser-packs" && asset.AssetID == id {
 			t.Fatal("rolled back parser remained in the active parser bundle")
 		}
+	}
+	rolledBackDoc, err := f.server.metadata.Get(context.Background(), "parser-packs", id, 0)
+	var rolledBackPayload map[string]any
+	if err != nil || json.Unmarshal(rolledBackDoc.Payload, &rolledBackPayload) != nil || rolledBackPayload["rolled_back_by"] != "admin" || rolledBackPayload["rolled_back_at"] == nil {
+		t.Fatalf("rollback audit metadata was not retained: payload=%#v err=%v", rolledBackPayload, err)
+	}
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+id+"/publish", map[string]any{})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("republish approved parser for offboard test %d: %s", response.StatusCode, data)
+	}
+	response, data = f.request(http.MethodPost, "/api/v1/assurance/parsers/"+id+"/offboard", map[string]any{})
+	if response.StatusCode != http.StatusOK || decodeMap(t, data)["approval_gate"] != "pending_approval" {
+		t.Fatalf("offboard active candidate %d: %s", response.StatusCode, data)
+	}
+	offboardedDoc, err := f.server.metadata.Get(context.Background(), "parser-packs", id, 0)
+	var offboardedPayload map[string]any
+	if err != nil || json.Unmarshal(offboardedDoc.Payload, &offboardedPayload) != nil || offboardedPayload["offboarded_by"] != "admin" || offboardedPayload["offboarded_at"] == nil {
+		t.Fatalf("offboard audit metadata was not retained: payload=%#v err=%v", offboardedPayload, err)
 	}
 	response, data = f.request(http.MethodPost, "/api/v1/assurance/run", map[string]any{"raw": `{"level":"INFO","user":"alice"}`, "desired": map[string]any{"level": "INFO", "user": "alice"}})
 	if response.StatusCode != http.StatusOK {

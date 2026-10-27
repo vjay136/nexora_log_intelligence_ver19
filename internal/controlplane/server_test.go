@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"nexora.local/nli-v19/internal/eventstore"
+	metastore "nexora.local/nli-v19/internal/store"
 )
 
 type apiFixture struct {
@@ -454,7 +456,7 @@ func TestParserAssetApprovalPublishesAndMaterializesFleetBundle(t *testing.T) {
 		t.Fatalf("publish parser asset %d: %s", response.StatusCode, data)
 	}
 	published := decodeMap(t, data)
-	if published["bundle_hash"] == "" || published["controller_applied_hash"] != published["bundle_hash"] || published["auto_rollout_status"] != "no_online_clients" {
+	if published["bundle_hash"] == "" || published["controller_applied_hash"] != published["bundle_hash"] || published["auto_rollout_status"] != "pending_approval" || published["rollout_proposal"] == nil {
 		t.Fatalf("publish was not materialized: %s", data)
 	}
 	response, data = f.request(http.MethodGet, "/api/v1/parser-sync", nil)
@@ -539,6 +541,25 @@ func TestNodeStateDriftIsAuthenticated(t *testing.T) {
 		t.Fatalf("register %d: %s", response.StatusCode, data)
 	}
 	token := decodeMap(t, data)["node_token"].(string)
+	proposals, err := f.server.metadata.List(context.Background(), "rollout-proposals", metastore.Query{State: "pending_approval", Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposalID := ""
+	for _, proposal := range proposals {
+		var payload map[string]any
+		if json.Unmarshal(proposal.Payload, &payload) == nil && payload["name"] == "Initial parser asset synchronization" {
+			proposalID = proposal.ID
+			break
+		}
+	}
+	if proposalID == "" {
+		t.Fatal("new enrollment did not create an approval-gated initial parser sync proposal")
+	}
+	approvalResponse, approvalData := f.request(http.MethodPost, "/api/v1/rollouts/"+proposalID+"/approve", map[string]any{})
+	if approvalResponse.StatusCode != http.StatusOK {
+		t.Fatalf("independent initial parser sync approval %d: %s", approvalResponse.StatusCode, approvalData)
+	}
 	commandRequest, _ := http.NewRequest(http.MethodGet, f.http.URL+"/api/v1/node/commands/next?node_id=node-1", nil)
 	commandRequest.Header.Set("Authorization", "Bearer "+token)
 	commandResponse, err := http.DefaultClient.Do(commandRequest)
