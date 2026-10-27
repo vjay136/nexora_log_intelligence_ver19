@@ -28,14 +28,28 @@ if [[ -n $previous_client && -n $previous_controller ]]; then
   [[ $(rpm -qp --qf '%{NAME}' "$previous_controller") == nli-controller-agent ]] || fail "previous controller RPM has unexpected package name"
   previous_client_version=$(rpm -qp --qf '%{VERSION}' "$previous_client")
   previous_controller_version=$(rpm -qp --qf '%{VERSION}' "$previous_controller")
-  [[ $previous_client_version == 18.0.0 ]] || fail "previous client must be a genuine V18 RPM from the latest V18 release"
-  [[ $previous_controller_version == 18.0.0 ]] || fail "previous controller must be a genuine V18 RPM from the latest V18 release"
+  [[ $previous_client_version == 19.0.0 ]] || fail "previous client must be a genuine earlier V19 RPM"
+  [[ $previous_controller_version == 19.0.0 ]] || fail "previous controller must be a genuine earlier V19 RPM"
   previous_client_nevra=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$previous_client")
   previous_controller_nevra=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$previous_controller")
   current_client_nevra=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$client")
   current_controller_nevra=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$controller")
   [[ $previous_client_nevra != "$current_client_nevra" ]] || fail "previous client RPM is identical to the release under test"
   [[ $previous_controller_nevra != "$current_controller_nevra" ]] || fail "previous controller RPM is identical to the release under test"
+  previous_client_release=$(rpm -qp --qf '%{RELEASE}' "$previous_client")
+  previous_controller_release=$(rpm -qp --qf '%{RELEASE}' "$previous_controller")
+  current_client_release=$(rpm -qp --qf '%{RELEASE}' "$client")
+  current_controller_release=$(rpm -qp --qf '%{RELEASE}' "$controller")
+  previous_client_release=${previous_client_release%%.*}
+  previous_controller_release=${previous_controller_release%%.*}
+  current_client_release=${current_client_release%%.*}
+  current_controller_release=${current_controller_release%%.*}
+  [[ $previous_client_release =~ ^[1-9][0-9]*$ ]] || fail "previous client RPM has an invalid release number"
+  [[ $previous_controller_release =~ ^[1-9][0-9]*$ ]] || fail "previous controller RPM has an invalid release number"
+  [[ $current_client_release =~ ^[1-9][0-9]*$ ]] || fail "current client RPM has an invalid release number"
+  [[ $current_controller_release =~ ^[1-9][0-9]*$ ]] || fail "current controller RPM has an invalid release number"
+  (( previous_client_release < current_client_release )) || fail "previous client RPM is not older than the release under test"
+  (( previous_controller_release < current_controller_release )) || fail "previous controller RPM is not older than the release under test"
   dnf -y install "$previous_client" "$previous_controller"
   install -d -o nli -g nli -m 0750 /var/lib/nli /var/lib/nli-controller
   echo pre-upgrade-client >/var/lib/nli/release-test.marker

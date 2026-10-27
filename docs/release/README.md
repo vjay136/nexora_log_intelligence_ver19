@@ -116,7 +116,7 @@ This directory documents the supported V19 release path. It builds source-derive
 - Release input must be one clean, committed, frozen Git revision. Dirty or untracked source is refused.
 - Outputs go to `NLI_BUILD_SCRATCH` or an explicit output directory; the repository `dist` directory is never used.
 - `nli_clinet_ver19.rpm` is a byte-identical filename alias of `nli_client_ver19.rpm`. Both contain the same `nli-client` NEVRA and must not be treated as separate packages.
-- Upgrade acceptance uses genuine client and controller RPMs from the latest V18 release (`v18.0.0-1`). Earlier releases are not inputs to V19 promotion.
+- Upgrade acceptance uses genuine client and controller RPMs from the latest published V19 release. The lifecycle gate requires an earlier RPM release number, then proves upgrade, rollback, re-upgrade, restart, state preservation, and uninstall behavior on Rocky Linux 9 and Rocky Linux 10.2.
 - The release remains unsigned unless an explicit signing key is supplied. Unsigned output must never be described as signed.
 - Operators receive one `nli-v<version>-<release>-x86_64.tar.gz` archive plus its external `.sha256`. The archive contains `RELEASE_ID`, all RPM/web/operator artifacts, and the complete internal checksum manifest. It must be extracted into a fresh versioned directory.
 

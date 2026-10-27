@@ -131,6 +131,18 @@ for marker in (
 if "REQUIRE_PREVIOUS=0" in workflow:
     fail("release workflow may silently skip genuine previous-RPM acceptance")
 
+rocky_validation = (root / "tests/rocky/validate.sh").read_text(encoding="utf-8")
+for marker in (
+    "previous client must be a genuine earlier V19 RPM",
+    "previous controller must be a genuine earlier V19 RPM",
+    "previous_client_release < current_client_release",
+    "previous_controller_release < current_controller_release",
+):
+    if marker not in rocky_validation:
+        fail(f"Rocky lifecycle validation is missing previous-release gate {marker!r}")
+if "genuine V18 RPM" in rocky_validation:
+    fail("Rocky lifecycle validation still hard-codes the obsolete V18 baseline")
+
 research_ledger = (root / "docs/V19_RESEARCH_AND_LICENSE_LEDGER.md").read_text(encoding="utf-8")
 if "| **Total** | **100** |" not in research_ledger:
     fail("research ledger does not prove the required exact total of 100 reviews")
