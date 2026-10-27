@@ -1,8 +1,8 @@
 {
   "schema_version": "1",
-  "descriptor_count": 26,
-  "addressable_series_floor": 19000,
-  "addressability_explanation": "Each of the 19 client descriptors can address 1,000 observed node_id values. This is dimensional addressability, not a count of live clients or measurements. Stream series also vary by observed source and phase. Only live measurements are exported.",
+  "descriptor_count": 32,
+  "addressable_series_floor": 25000,
+  "addressability_explanation": "Each of the 25 client descriptors can address 1,000 observed node_id values. This is dimensional addressability, not a count of live clients or measurements. Stream series also vary by observed source and phase. Only live measurements are exported.",
   "endpoints": {
     "client": {
       "path": "/metrics",
@@ -207,6 +207,45 @@
       "source": "latest stream telemetry"
     },
     {
+      "name": "nli_stream_validation_attempts_per_second",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest source-reported validation attempt rate.",
+      "labels": [
+        "node_id",
+        "source",
+        "phase"
+      ],
+      "unit": "records/second",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_validation_passed_per_second",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest source-reported validation pass rate.",
+      "labels": [
+        "node_id",
+        "source",
+        "phase"
+      ],
+      "unit": "records/second",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_validation_failed_per_second",
+      "group": "client",
+      "type": "gauge",
+      "help": "Latest source-reported validation failure rate.",
+      "labels": [
+        "node_id",
+        "source",
+        "phase"
+      ],
+      "unit": "records/second",
+      "source": "latest stream telemetry"
+    },
+    {
       "name": "nli_stream_bytes_per_second",
       "group": "client",
       "type": "gauge",
@@ -248,6 +287,42 @@
       "group": "client",
       "type": "counter",
       "help": "Latest source cumulative quarantined records.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "records",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_validation_attempts_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Latest source cumulative validation attempts.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "records",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_validation_passed_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Latest source cumulative validation passes.",
+      "labels": [
+        "node_id",
+        "source"
+      ],
+      "unit": "records",
+      "source": "latest stream telemetry"
+    },
+    {
+      "name": "nli_stream_validation_failed_total",
+      "group": "client",
+      "type": "counter",
+      "help": "Latest source cumulative validation failures.",
       "labels": [
         "node_id",
         "source"

@@ -51,8 +51,8 @@ def validate(root: Path, stage: Path) -> None:
         fail("catalog schema_version must be 1")
     if catalog.get("descriptor_count") != len(controller_descriptors):
         fail("descriptor_count must match the controller catalog descriptor list")
-    if len(controller_descriptors) != 26 or len(client_descriptors) != 13:
-        fail("catalog must contain 26 controller and 13 client descriptors")
+    if len(controller_descriptors) != 32 or len(client_descriptors) != 13:
+        fail("catalog must contain 32 controller and 13 client descriptors")
     if catalog.get("addressable_series_floor") != len([d for d in controller_descriptors if d["group"] == "client"]) * 1000:
         fail("addressable_series_floor must be derived from client descriptor count x 1,000")
     if "not a count of live" not in catalog.get("addressability_explanation", ""):

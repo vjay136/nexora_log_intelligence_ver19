@@ -78,6 +78,16 @@
       "targets":[{"expr":"sum(nli_upes_discovery_pending)","legendFormat":"queued summaries now","refId":"A"},{"expr":"sum(increase(nli_upes_discovery_dropped_total[5m]))","legendFormat":"queue drops (5m)","refId":"B"},{"expr":"sum(rate(nli_upes_observed_failures_total[5m]))","legendFormat":"observed failures/s","refId":"C"}],
       "title":"UPES bounded failure discovery",
       "type":"timeseries"
+    },
+    {
+      "datasource": {"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults":{"unit":"records/s"},"overrides":[]},
+      "gridPos":{"h":8,"w":24,"x":0,"y":32},
+      "id":7,
+      "options":{"legend":{"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},
+      "targets":[{"expr":"sum(nli_stream_validation_attempts_per_second)","legendFormat":"attempted","refId":"A"},{"expr":"sum(nli_stream_validation_passed_per_second)","legendFormat":"passed","refId":"B"},{"expr":"sum(nli_stream_validation_failed_per_second)","legendFormat":"failed","refId":"C"}],
+      "title":"Parser validation outcomes",
+      "type":"timeseries"
     }
   ],
   "refresh":"30s",
