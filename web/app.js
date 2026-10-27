@@ -305,7 +305,7 @@
     nav.addEventListener('click',event=>{const button=event.target.closest('[data-endpoint-tab]');if(button)activate(button.dataset.endpointTab);});activate('destinations');
   }
 
-  function renderPage(id, html) { if (state.user && state.page === id) { page.innerHTML = html; page.dataset.dirty = 'false'; addInputGuidance();if(id==='assurance')setupAssuranceTabs();if(id==='outputs')setupEndpointTabs();if(id==='ai')setupAITabs();if(id==='monitoring')setupMonitoringTabs();if(['sync-fabric','nhle-monitor','napi-monitor','nal-monitor','upes'].includes(id))setupSubsystemTabs(); } }
+  function renderPage(id, html) { if (state.user && state.page === id) { page.innerHTML = html; page.dataset.page = id; page.dataset.dirty = 'false'; addInputGuidance();if(id==='assurance')setupAssuranceTabs();if(id==='outputs')setupEndpointTabs();if(id==='ai')setupAITabs();if(id==='monitoring')setupMonitoringTabs();if(['sync-fabric','nhle-monitor','napi-monitor','nal-monitor','upes'].includes(id))setupSubsystemTabs(); } }
   function setupAITabs() {
     const existing=[...page.querySelectorAll(':scope > .panel')];if(!existing.length)return;
     const categories=[['provider','Provider'],['status','Status'],['results','Results'],['parser','Parser'],['regex','Regex'],['template','Template'],['approval','Approval']];
@@ -473,6 +473,7 @@
     el('page-title').textContent = TITLES[state.page];
     el('page-kicker').textContent = `${navEntry?.[0] || 'Control plane'} workspace`;
     markActive(); el('sidebar').classList.remove('open');
+    page.removeAttribute('data-page');
     page.innerHTML = loading();
     try {
       await LOADERS[requestedPage]();
@@ -1233,6 +1234,7 @@
     if(gprs)gprs.hidden=false;if(tablist)tablist.remove();
     page.querySelectorAll(':scope > .callout, :scope > .grid, :scope > .assurance-tab-panel:not(#assurance-panel-gprs)').forEach(node=>node.remove());
     page.insertAdjacentHTML('afterbegin','<div class="dashboard-intro"><div><p class="eyebrow">UPES recovery · governed parser lifecycle</p><h1>Quarantine Resolution Wizard</h1><p>Resolve retained parsing failures in one nine-stage workspace while the current production parser remains authoritative.</p></div></div>');
+    page.dataset.page='quarantine-wizard';
   }
   const LOADERS = { operations:loadOperations, monitoring:async()=>renderMonitoring(), 'sync-fabric':async()=>renderSyncFabric(), 'nhle-monitor':async()=>renderSubsystemPage('nhle-monitor'), 'napi-monitor':async()=>renderSubsystemPage('napi-monitor'), 'nal-monitor':async()=>renderSubsystemPage('nal-monitor'), upes:loadUPES, nupire:loadNupire, assurance:loadAssurance, 'quarantine-wizard':loadQuarantineWizard, 'parser-workspace':loadParserWorkspace, 'field-integrity':loadFieldIntegrity, fleet:loadFleet, 'parser-sync':loadParserSync, clients:loadClientManagement, controller:loadControllerManagement, parsers:loadParsers, migration:loadMigration, 'input-paths':loadInputPaths, kv:()=>loadConfig('kv'), static:()=>loadConfig('static'), projection:()=>loadConfig('projection'), studio:()=>loadConfig('studio'), regex:()=>loadConfig('regex'), knownkeys:()=>loadConfig('knownkeys'), semantic:()=>loadConfig('semantic'), 'engine-network':()=>loadDomainEngine('engine-network'), 'engine-url':()=>loadDomainEngine('engine-url'), 'engine-email':()=>loadDomainEngine('engine-email'), 'engine-subject':()=>loadDomainEngine('engine-subject'), outputs:loadOutputEngine, metadata:loadMetadata, streams:loadStreams, unknowns:loadUnknowns, 'api-monitor':loadAPIMonitor, drift:loadDrift, performance:loadPerformance, rollouts:loadRollouts, artifacts:loadArtifacts, security:loadSecurity, system:loadSystem, communications:loadCommunicationStatus, notifications:loadNotifications, ai:loadAIProvider };
 

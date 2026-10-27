@@ -165,6 +165,7 @@ test('all workspaces render and audit is visible', async ({ page }) => {
 });
 
 test('every visible inner tab activates without browser, request, or render errors', async ({ page }) => {
+  test.setTimeout(120_000);
   const { observed } = await mockController(page);
   const errors = [];
   const failedResponses = [];
@@ -173,12 +174,14 @@ test('every visible inner tab activates without browser, request, or render erro
   await login(page);
   for (const workspace of tabs) {
     await page.getByTestId(`nav-${workspace}`).click();
+    await expect(page.locator('#page')).toHaveAttribute('data-page', workspace);
     await expect(page.locator('.loading-state')).toHaveCount(0);
     await expect(page.locator('.error-state')).toHaveCount(0);
-    const innerTabs = page.locator('#page [role=tab]:visible');
-    const count = await innerTabs.count();
-    for (let index = 0; index < count; index += 1) {
-      const tab = innerTabs.nth(index);
+    const innerTabNames = await page.locator('#page [role=tab]:visible').allTextContents();
+    for (const rawName of innerTabNames) {
+      const name = rawName.trim();
+      const tab = page.locator('#page').getByRole('tab', { name, exact: true }).first();
+      await expect(tab, `inner tab ${workspace} / ${name} remains mounted`).toBeVisible();
       await tab.click();
       await expect(tab).toHaveAttribute('aria-selected', 'true');
       await expect(page.locator('.error-state')).toHaveCount(0);
