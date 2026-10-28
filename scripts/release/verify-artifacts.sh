@@ -158,6 +158,8 @@ assert_entry "$client" /usr/bin/nli-client-control 0100755 root root
 assert_entry "$client" /usr/sbin/nli-client-setup 0100755 root root
 assert_entry "$client" /etc/nli/nli.json 0100640 root nli
 assert_entry "$client" /var/lib/nli 040750 nli nli
+assert_entry "$client" /var/lib/nli/parsers 040750 root nli
+assert_entry "$client" /var/lib/nli/parsers/quarantine 040750 nli nli
 assert_entry "$controller" /usr/bin/nli-controller-agent 0100755 root root
 assert_entry "$controller" /usr/sbin/nli-controller-setup 0100755 root root
 assert_entry "$controller" /usr/sbin/nli-supabase-setup 0100755 root root

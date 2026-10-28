@@ -95,7 +95,7 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %attr(0644,root,root) /usr/lib/systemd/system/nli-client-control.service
 %attr(0644,root,root) /usr/lib/systemd/system/nli-client-bootstrap.service
 %dir %attr(0750,nli,nli) /var/lib/nli
-%dir %attr(0750,nli,nli) /var/lib/nli/parsers
+%dir %attr(0750,root,nli) /var/lib/nli/parsers
 %dir %attr(0750,nli,nli) /var/lib/nli/parsers/quarantine
 %dir %attr(0750,root,nli) /var/lib/nli/parser-assets
 %dir %attr(0750,nli,nli) /var/lib/nli/spool
