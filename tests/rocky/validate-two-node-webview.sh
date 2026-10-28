@@ -80,6 +80,11 @@ import json, pathlib
 path = pathlib.Path('/etc/nli/controller.json')
 value = json.loads(path.read_text(encoding='utf-8'))
 value['storage_provider'] = 'local'
+# The packaged browser acceptance suite traverses every workspace in rapid
+# succession. Keep the production limiter enabled while sizing this isolated
+# controller high enough that the test measures UI/API contracts rather than
+# exhausting the fixture's anonymous and authenticated request budget.
+value['rate_limit'] = 5000
 path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n', encoding='utf-8')
 PY
 docker exec -e NLI_TEST_ADMIN_PASSWORD="$admin_password" "$controller" bash -c \
